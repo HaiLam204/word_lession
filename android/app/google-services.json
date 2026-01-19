@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "414162632829",
+    "firebase_url": "https://wordlession-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "wordlession",
+    "storage_bucket": "wordlession.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:414162632829:android:947610d4788aae2713b114",
+        "android_client_info": {
+          "package_name": "com.example.word_lession"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyChUlD7fHw9M7-XrI9NBcqVLMM2bXit1U8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
