@@ -59,7 +59,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ... (Giữ nguyên _buildHeader, _buildStreakSection, _buildDailyReviewCard)
   Widget _buildHeader() {
     return StreamBuilder(
       stream: _dbRef.child("users/${user!.uid}").onValue,
@@ -160,7 +159,6 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: dueCount > 0 ? () {
-                  // Review chung (không lọc theo deck)
                   Navigator.push(context, MaterialPageRoute(builder: (context) => const StudyScreen()));
                 } : null,
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: const Color(0xFF3B8C88)),
@@ -173,94 +171,120 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // --- SỬA PHẦN NÀY ---
+  // --- PHẦN DANH SÁCH DECK ĐƯỢC CẬP NHẬT ---
   Widget _buildDeckList() {
     return StreamBuilder(
       stream: _dbRef.child("decks").orderByChild("ownerId").equalTo(user!.uid).onValue,
-      builder: (context, snapshot) {
-        if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-          return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text("No decks found.")));
+      builder: (context, deckSnapshot) {
+        if (!deckSnapshot.hasData || deckSnapshot.data!.snapshot.value == null) {
+          return const Center(child: Text("No decks found."));
         }
 
-        Map data = snapshot.data!.snapshot.value as Map;
-        List<Deck> decks = [];
-        data.forEach((key, value) {
-          decks.add(Deck.fromMap(key, value));
-        });
+        // Lấy thêm Stream Cards để tính toán tiến độ
+        return StreamBuilder(
+          stream: _dbRef.child("cards").orderByChild("ownerId").equalTo(user!.uid).onValue,
+          builder: (context, cardSnapshot) {
+            
+            // Tính số thẻ đến hạn (dueCount) cho mỗi Deck
+            Map<String, int> deckDueCounts = {};
+            int now = DateTime.now().millisecondsSinceEpoch;
 
-        return Column(
-          children: decks.map((deck) {
-            return GestureDetector(
-              onTap: () {
-                // CHUYỂN SANG HỌC TỪ TRONG DECK NÀY
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => StudyScreen(deckId: deck.id), // Truyền ID của Deck vào
+            if (cardSnapshot.hasData && cardSnapshot.data!.snapshot.value != null) {
+              Map cardsData = cardSnapshot.data!.snapshot.value as Map;
+              cardsData.forEach((key, value) {
+                final card = Flashcard.fromMap(key, value);
+                // Nếu thẻ đến hạn
+                if (card.dueDate <= now) {
+                  if (!deckDueCounts.containsKey(card.deckId)) deckDueCounts[card.deckId] = 0;
+                  deckDueCounts[card.deckId] = deckDueCounts[card.deckId]! + 1;
+                }
+              });
+            }
+
+            Map deckData = deckSnapshot.data!.snapshot.value as Map;
+            List<Deck> decks = [];
+            deckData.forEach((key, value) {
+              decks.add(Deck.fromMap(key, value));
+            });
+
+            return Column(
+              children: decks.map((deck) {
+                // Kiểm tra xem deck đã học xong chưa
+                int dueCount = deckDueCounts[deck.id] ?? 0;
+                bool isDone = dueCount == 0; 
+
+                return GestureDetector(
+                  onTap: () {
+                    // Luôn cho phép vào học (cả khi đã xong)
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => StudyScreen(deckId: deck.id),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey.shade100),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 50, height: 50,
+                          decoration: BoxDecoration(
+                            // Đổi màu nền icon nếu đã xong
+                            color: isDone ? Colors.green.withOpacity(0.1) : const Color(0xFFF0AE9A).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12)
+                          ),
+                          child: Icon(
+                            isDone ? Icons.check_circle : Icons.folder_copy, 
+                            color: isDone ? Colors.green : const Color(0xFFF0AE9A), 
+                            size: 30
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(deck.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                              Row(
+                                children: [
+                                  Text("${deck.cardCount} cards total", style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                  const SizedBox(width: 8),
+                                  // Hiển thị trạng thái
+                                  if (isDone)
+                                    const Text("• Đã xong", style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold))
+                                  else
+                                    Text("• $dueCount cần ôn", style: const TextStyle(fontSize: 12, color: Colors.orange, fontWeight: FontWeight.bold))
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        // Nút Play
+                        const Icon(Icons.play_arrow_rounded, color: Colors.grey),
+                      ],
+                    ),
                   ),
                 );
-              },
-              child: Container(
-                margin: const EdgeInsets.only(bottom: 16),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade100),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 8, offset: const Offset(0, 2)),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 64, height: 64,
-                      decoration: BoxDecoration(color: const Color(0xFFF0AE9A).withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
-                      child: const Icon(Icons.folder_copy, color: Color(0xFFF0AE9A), size: 30),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(deck.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF131616))),
-                          const SizedBox(height: 4),
-                          Text("${deck.cardCount} cards total", style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                          const SizedBox(height: 8),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(4),
-                            child: LinearProgressIndicator(
-                              value: 0, // Tạm thời để 0
-                              backgroundColor: Colors.grey.shade100,
-                              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3B8C88)),
-                              minHeight: 6,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Icon(Icons.play_circle_outline, color: Colors.grey), // Icon biểu thị "học"
-                  ],
-                ),
-              ),
+              }).toList(),
             );
-          }).toList(),
+          }
         );
       },
     );
   }
 
-  // FAB và BottomNav (Giữ nguyên)
   Widget _buildFloatingActionButton() {
-    return Container(
-      width: 56, height: 56,
-      decoration: BoxDecoration(color: const Color(0xFF3B8C88), shape: BoxShape.circle),
-      child: IconButton(
-        icon: const Icon(Icons.add, color: Colors.white, size: 30),
-        onPressed: () {
-          Navigator.push(context, MaterialPageRoute(builder: (context) => const CreateFlashcardScreen()));
-        },
-      ),
+    return FloatingActionButton(
+      backgroundColor: const Color(0xFF3B8C88),
+      child: const Icon(Icons.add, color: Colors.white),
+      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const CreateFlashcardScreen())),
     );
   }
 
@@ -276,7 +300,7 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           _buildNavItem(Icons.home, "Home", true),
           GestureDetector(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const StudyScreen())), // Nút Study ở dưới thì vào học chung
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const StudyScreen())),
             child: _buildNavItem(Icons.auto_stories, "Study", false),
           ),
           GestureDetector(
