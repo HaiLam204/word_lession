@@ -46,14 +46,11 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
+              bottom: 0, left: 0, right: 0,
               child: _buildBottomNav(),
             ),
             Positioned(
-              bottom: 100,
-              right: 24,
+              bottom: 100, right: 24,
               child: _buildFloatingActionButton(),
             ),
           ],
@@ -62,6 +59,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ... (Giữ nguyên _buildHeader, _buildStreakSection, _buildDailyReviewCard)
   Widget _buildHeader() {
     return StreamBuilder(
       stream: _dbRef.child("users/${user!.uid}").onValue,
@@ -69,11 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
         String displayName = "User";
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
           final data = snapshot.data!.snapshot.value as Map;
-          try {
-             displayName = data['displayName'] ?? "User";
-          } catch (e) {
-             displayName = "User";
-          }
+          try { displayName = data['displayName'] ?? "User"; } catch (_) {}
         }
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -89,33 +83,13 @@ class _HomeScreenState extends State<HomeScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      "Welcome back",
-                      style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500),
-                    ),
-                    Text(
-                      displayName,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF131616)),
-                    ),
+                    const Text("Welcome back", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    Text(displayName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ],
             ),
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2)),
-                ],
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.notifications_none, color: Colors.grey),
-                onPressed: () {},
-              ),
-            )
+            const Icon(Icons.notifications_none, color: Colors.grey),
           ],
         );
       },
@@ -144,16 +118,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   const Icon(Icons.local_fire_department, color: Color(0xFFF0D16B)),
                   const SizedBox(width: 8),
-                  Text(
-                    "$streak Day Streak!",
-                    style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF8C741D)),
-                  ),
+                  Text("$streak Day Streak!", style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF8C741D))),
                 ],
               ),
-              Text(
-                streak == 0 ? "Start today!" : "Keep it up!",
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Color(0xFF8C741D)),
-              ),
+              Text(streak == 0 ? "Start today!" : "Keep it up!", style: const TextStyle(fontSize: 12, color: Color(0xFF8C741D))),
             ],
           ),
         );
@@ -169,29 +137,22 @@ class _HomeScreenState extends State<HomeScreen> {
         if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
           Map data = snapshot.data!.snapshot.value as Map;
           int now = DateTime.now().millisecondsSinceEpoch;
-          
-          data.forEach((key, value) {
-            final card = Flashcard.fromMap(key, value);
-            if (card.dueDate <= now) {
-              dueCount++;
-            }
+          data.forEach((k, v) {
+            final card = Flashcard.fromMap(k, v);
+            if (card.dueDate <= now) dueCount++;
           });
         }
-
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: const Color(0xFF3B8C88),
             borderRadius: BorderRadius.circular(20),
-            boxShadow: [
-              BoxShadow(color: const Color(0xFF3B8C88).withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
-            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text("DAILY REVIEW", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white.withOpacity(0.7), letterSpacing: 1.2)),
+              const Text("DAILY REVIEW", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white70)),
               const SizedBox(height: 8),
               Text("$dueCount words", style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
               const SizedBox(height: 4),
@@ -199,20 +160,10 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 20),
               ElevatedButton(
                 onPressed: dueCount > 0 ? () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const StudyScreen()),
-                  );
+                  // Review chung (không lọc theo deck)
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const StudyScreen()));
                 } : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF3B8C88),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  elevation: 4,
-                  disabledBackgroundColor: Colors.white.withOpacity(0.5),
-                  disabledForegroundColor: const Color(0xFF3B8C88).withOpacity(0.5),
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: const Color(0xFF3B8C88)),
                 child: const Text("Start Review Session", style: TextStyle(fontWeight: FontWeight.bold)),
               )
             ],
@@ -222,20 +173,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // --- SỬA PHẦN NÀY ---
   Widget _buildDeckList() {
     return StreamBuilder(
       stream: _dbRef.child("decks").orderByChild("ownerId").equalTo(user!.uid).onValue,
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-          return Container(
-            padding: const EdgeInsets.all(20),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Text("No decks found. Create one!", style: TextStyle(color: Colors.grey)),
-          );
+          return const Center(child: Padding(padding: EdgeInsets.all(20), child: Text("No decks found.")));
         }
 
         Map data = snapshot.data!.snapshot.value as Map;
@@ -248,14 +192,11 @@ class _HomeScreenState extends State<HomeScreen> {
           children: decks.map((deck) {
             return GestureDetector(
               onTap: () {
-                // Click vào deck để tạo từ mới
+                // CHUYỂN SANG HỌC TỪ TRONG DECK NÀY
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => CreateFlashcardScreen(
-                      selectedDeckId: deck.id,
-                      selectedDeckName: deck.name,
-                    ),
+                    builder: (context) => StudyScreen(deckId: deck.id), // Truyền ID của Deck vào
                   ),
                 );
               },
@@ -273,12 +214,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Row(
                   children: [
                     Container(
-                      width: 64, 
-                      height: 64,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0AE9A).withOpacity(0.15), 
-                        borderRadius: BorderRadius.circular(12)
-                      ),
+                      width: 64, height: 64,
+                      decoration: BoxDecoration(color: const Color(0xFFF0AE9A).withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
                       child: const Icon(Icons.folder_copy, color: Color(0xFFF0AE9A), size: 30),
                     ),
                     const SizedBox(width: 16),
@@ -293,7 +230,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           ClipRRect(
                             borderRadius: BorderRadius.circular(4),
                             child: LinearProgressIndicator(
-                              value: deck.cardCount > 0 ? 0.3 : 0,
+                              value: 0, // Tạm thời để 0
                               backgroundColor: Colors.grey.shade100,
                               valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF3B8C88)),
                               minHeight: 6,
@@ -302,8 +239,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Icon(Icons.arrow_forward_ios, color: Colors.grey.shade400, size: 16),
+                    const Icon(Icons.play_circle_outline, color: Colors.grey), // Icon biểu thị "học"
                   ],
                 ),
               ),
@@ -314,24 +250,15 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // FAB và BottomNav (Giữ nguyên)
   Widget _buildFloatingActionButton() {
     return Container(
-      width: 56, 
-      height: 56,
-      decoration: BoxDecoration(
-        color: const Color(0xFF3B8C88),
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(color: const Color(0xFF3B8C88).withOpacity(0.4), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
-      ),
+      width: 56, height: 56,
+      decoration: BoxDecoration(color: const Color(0xFF3B8C88), shape: BoxShape.circle),
       child: IconButton(
         icon: const Icon(Icons.add, color: Colors.white, size: 30),
         onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const CreateFlashcardScreen()),
-          );
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const CreateFlashcardScreen()));
         },
       ),
     );
@@ -348,21 +275,16 @@ class _HomeScreenState extends State<HomeScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           _buildNavItem(Icons.home, "Home", true),
-          _buildNavItem(Icons.auto_stories, "Study", false),
           GestureDetector(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const LibraryScreen()),
-              );
-            },
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const StudyScreen())), // Nút Study ở dưới thì vào học chung
+            child: _buildNavItem(Icons.auto_stories, "Study", false),
+          ),
+          GestureDetector(
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const LibraryScreen())),
             child: _buildNavItem(Icons.menu_book, "Library", false),
           ),
-          _buildNavItem(Icons.bar_chart, "Stats", false),
           GestureDetector(
-             onTap: () {
-               AuthService().signOut();
-             },
+             onTap: () => AuthService().signOut(),
              child: _buildNavItem(Icons.settings, "Settings", false)
           ),
         ],
@@ -371,20 +293,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildNavItem(IconData icon, String label, bool isActive) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, color: isActive ? const Color(0xFF3B8C88) : Colors.grey.shade400),
-        const SizedBox(height: 4),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
-            color: isActive ? const Color(0xFF3B8C88) : Colors.grey.shade400,
-          ),
-        ),
-      ],
-    );
+    return Column(mainAxisSize: MainAxisSize.min, children: [Icon(icon, color: isActive ? const Color(0xFF3B8C88) : Colors.grey.shade400), const SizedBox(height: 4), Text(label, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isActive ? const Color(0xFF3B8C88) : Colors.grey.shade400))]);
   }
 }

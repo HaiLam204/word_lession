@@ -2,22 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../../models/app_models.dart';
+import 'dart:math'; // Import để dùng hiệu ứng xoay
 
 class StudyScreen extends StatefulWidget {
-  const StudyScreen({super.key});
+  final String? deckId; // Thêm tham số deckId (có thể null nếu học Daily Review)
+
+  const StudyScreen({super.key, this.deckId});
 
   @override
   State<StudyScreen> createState() => _StudyScreenState();
 }
 
-class _StudyScreenState extends State<StudyScreen> {
+class _StudyScreenState extends State<StudyScreen> with SingleTickerProviderStateMixin {
   static const Color colorPrimary = Color(0xFF2B5D78);
   static const Color colorBgLight = Color(0xFFF9FAFB);
   static const Color colorSrsAgain = Color(0xFFEF4444);
   static const Color colorSrsHard = Color(0xFFFACC15);
   static const Color colorSrsEasy = Color(0xFF22C55E);
 
-  bool isFlipped = false;
+  // Controller cho hiệu ứng lật
+  late AnimationController _controller;
+  late Animation<double> _animation;
+  AnimationStatus _animationStatus = AnimationStatus.dismissed;
   
   final User? user = FirebaseAuth.instance.currentUser;
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
@@ -29,7 +35,19 @@ class _StudyScreenState extends State<StudyScreen> {
   @override
   void initState() {
     super.initState();
+    // Khởi tạo animation
+    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
+    _animation = Tween<double>(end: 1.0, begin: 0.0).animate(_controller)
+      ..addListener(() { setState(() {}); })
+      ..addStatusListener((status) { _animationStatus = status; });
+
     _loadCards();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCards() async {
@@ -46,7 +64,14 @@ class _StudyScreenState extends State<StudyScreen> {
         Map data = snapshot.value as Map;
         data.forEach((key, value) {
           final card = Flashcard.fromMap(key, value);
-          if (card.dueDate <= now) {
+          
+          // LOGIC LỌC THẺ:
+          // 1. Phải đến hạn (dueDate <= now)
+          // 2. Nếu có widget.deckId thì phải đúng deck đó
+          bool isDue = card.dueDate <= now;
+          bool isCorrectDeck = widget.deckId == null || card.deckId == widget.deckId;
+
+          if (isDue && isCorrectDeck) {
             loadedCards.add(card);
           }
         });
@@ -63,9 +88,11 @@ class _StudyScreenState extends State<StudyScreen> {
   }
 
   void _flipCard() {
-    setState(() {
-      isFlipped = !isFlipped;
-    });
+    if (_animationStatus == AnimationStatus.dismissed) {
+      _controller.forward();
+    } else {
+      _controller.reverse();
+    }
   }
 
   void _updateCard(String rating) async {
@@ -74,12 +101,11 @@ class _StudyScreenState extends State<StudyScreen> {
     Flashcard card = cards[currentIndex];
     int now = DateTime.now().millisecondsSinceEpoch;
 
-    // Cập nhật dueDate theo rating (Simple SRS)
     int newInterval = card.interval;
     double newEaseFactor = card.easeFactor;
 
     if (rating == 'again') {
-      newInterval = 1; // Lặp lại ngày hôm sau
+      newInterval = 1;
     } else if (rating == 'hard') {
       newInterval = (card.interval * 1.2).toInt();
       newEaseFactor = (card.easeFactor - 0.2).clamp(1.3, 2.5);
@@ -99,10 +125,12 @@ class _StudyScreenState extends State<StudyScreen> {
         'status': 'review',
       });
 
-      // Chuyển sang card tiếp theo
       setState(() {
-        isFlipped = false;
         currentIndex++;
+        // Reset animation về mặt trước cho thẻ tiếp theo
+        if (_animationStatus != AnimationStatus.dismissed) {
+           _controller.reset();
+        }
       });
     } catch (e) {
       _showMessage("Lỗi cập nhật: $e");
@@ -127,16 +155,20 @@ class _StudyScreenState extends State<StudyScreen> {
     if (cards.isEmpty) {
       return Scaffold(
         backgroundColor: colorBgLight,
+        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0, leading: const BackButton(color: Colors.black)),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.inbox, size: 64, color: Colors.grey),
+              const Icon(Icons.check_circle_outline, size: 80, color: Colors.green),
               const SizedBox(height: 16),
-              const Text("Không có từ để học hôm nay", style: TextStyle(fontSize: 18, color: Colors.grey)),
+              const Text("Bạn đã hoàn thành!", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              const Text("Không còn thẻ nào cần học trong bộ này.", style: TextStyle(color: Colors.grey)),
               const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(backgroundColor: colorPrimary, foregroundColor: Colors.white),
                 child: const Text("Quay lại"),
               ),
             ],
@@ -145,7 +177,32 @@ class _StudyScreenState extends State<StudyScreen> {
       );
     }
 
+    // Nếu đã học hết trong session hiện tại
+    if (currentIndex >= cards.length) {
+       return Scaffold(
+        backgroundColor: colorBgLight,
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.celebration, size: 80, color: Colors.orange),
+              const SizedBox(height: 16),
+              const Text("Tuyệt vời!", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+              const Text("Đã ôn tập xong.", style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text("Về trang chủ"),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     Flashcard currentCard = cards[currentIndex];
+    // Xác định mặt sau có đang hiện không
+    bool isBackVisible = _animationStatus == AnimationStatus.completed || _animationStatus == AnimationStatus.forward;
 
     return Scaffold(
       backgroundColor: colorBgLight,
@@ -159,7 +216,15 @@ class _StudyScreenState extends State<StudyScreen> {
                 child: _buildFlashcardStack(currentCard),
               ),
             ),
-            _buildFooterControls(),
+            // Chỉ hiện nút đánh giá khi đã lật ra sau
+            AnimatedOpacity(
+              opacity: isBackVisible ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 300),
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: _buildFooterControls(),
+              ),
+            ),
           ],
         ),
       ),
@@ -179,16 +244,16 @@ class _StudyScreenState extends State<StudyScreen> {
           Column(
             children: [
               Text(
-                "${currentIndex + 1} Study Session",
+                "Đang học: ${currentIndex + 1}/${cards.length}",
                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
               ),
-              Text(
-                "VOCABULARY BOOST",
+              const Text(
+                "SRS LEARNING",
                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey, letterSpacing: 1.2),
               ),
             ],
           ),
-          const Icon(Icons.settings, color: Colors.grey, size: 24),
+          const SizedBox(width: 28), // Placeholder để cân giữa
         ],
       ),
     );
@@ -198,184 +263,104 @@ class _StudyScreenState extends State<StudyScreen> {
     double progress = cards.isNotEmpty ? (currentIndex + 1) / cards.length : 0;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text("CURRENT PROGRESS", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: colorPrimary)),
-              Text("${currentIndex + 1} / ${cards.length} Cards", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.grey)),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: const Color(0xFFEEEEEE),
-              color: colorPrimary,
-              minHeight: 6,
-            ),
-          ),
-        ],
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: LinearProgressIndicator(
+          value: progress,
+          backgroundColor: const Color(0xFFEEEEEE),
+          color: colorPrimary,
+          minHeight: 6,
+        ),
       ),
     );
   }
 
   Widget _buildFlashcardStack(Flashcard card) {
-    return SizedBox(
-      width: 320,
-      height: 480,
-      child: Stack(
-        alignment: Alignment.center,
+    return GestureDetector(
+      onTap: _flipCard,
+      child: Transform(
+        alignment: FractionalOffset.center,
+        transform: Matrix4.identity()
+          ..setEntry(3, 2, 0.001)
+          ..rotateY(pi * _animation.value),
+        child: Container(
+          width: 320,
+          height: 460,
+          margin: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(32),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 30, offset: const Offset(0, 15)),
+            ],
+          ),
+          alignment: Alignment.center,
+          // Nếu xoay quá 90 độ (0.5) thì hiện mặt sau
+          child: _animation.value <= 0.5
+              ? _buildFrontSide(card.front)
+              : _buildBackSide(card.back, card.example),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFrontSide(String text) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          text,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF111827)),
+        ),
+        const SizedBox(height: 40),
+        const Text(
+          "CHẠM ĐỂ LẬT",
+          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.grey),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBackSide(String back, String example) {
+    return Transform(
+      alignment: Alignment.center,
+      transform: Matrix4.identity()..rotateY(pi), // Xoay ngược lại text để đọc được
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Positioned(
-            top: -20, 
-            left: -20, 
-            child: Container(
-              width: 150, 
-              height: 150, 
-              decoration: BoxDecoration(
-                color: colorPrimary.withOpacity(0.05), 
-                shape: BoxShape.circle
-              )
-            )
+          Text(
+            back,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFF2B5D78)),
           ),
-          
-          Positioned(
-            bottom: 0,
-            child: Transform.scale(
-              scale: 0.9,
-              child: Container(
-                width: 320, 
-                height: 480,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.4), 
-                  borderRadius: BorderRadius.circular(24)
-                ),
+          if (example.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
+              child: Text(
+                example,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 16, fontStyle: FontStyle.italic, color: Colors.grey),
               ),
             ),
-          ),
-          Positioned(
-            bottom: 10,
-            child: Transform.scale(
-              scale: 0.95,
-              child: Container(
-                width: 320, 
-                height: 480,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.6), 
-                  borderRadius: BorderRadius.circular(24)
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 20,
-            child: GestureDetector(
-              onTap: _flipCard,
-              child: Container(
-                width: 320, 
-                height: 460,
-                padding: const EdgeInsets.all(32),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: Colors.grey.shade100),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 30, offset: const Offset(0, 15)),
-                  ],
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Container(
-                      height: 4, 
-                      width: double.infinity, 
-                      decoration: BoxDecoration(
-                        color: colorPrimary.withOpacity(0.1), 
-                        borderRadius: BorderRadius.circular(2)
-                      )
-                    ),
-                    
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: colorPrimary.withOpacity(0.05), 
-                          shape: BoxShape.circle
-                        ),
-                        child: const Icon(Icons.volume_up, color: colorPrimary, size: 24),
-                      ),
-                    ),
-
-                    Column(
-                      children: [
-                        Text(
-                          card.front, 
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Color(0xFF111827))
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          card.example.isNotEmpty ? card.example : "Pronunciation", 
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 14, fontStyle: FontStyle.italic, color: Colors.grey, fontWeight: FontWeight.w300)
-                        ),
-                        
-                        if (isFlipped) ...[
-                          const SizedBox(height: 32),
-                          const Divider(height: 1, color: Color(0xFFF3F4F6)),
-                          const SizedBox(height: 32),
-                          Text(
-                            card.back,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(fontSize: 16, height: 1.5, color: Color(0xFF374151)),
-                          ),
-                        ]
-                      ],
-                    ),
-
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: const [
-                        Icon(Icons.touch_app, size: 16, color: Colors.grey),
-                        SizedBox(width: 8),
-                        Text(
-                          "TAP TO FLIP", 
-                          style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.grey)
-                        ),
-                      ],
-                    )
-                  ],
-                ),
-              ),
-            ),
-          ),
+          ]
         ],
       ),
     );
   }
 
   Widget _buildFooterControls() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
-      child: Column(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          const Text(
-            "HOW WELL DID YOU KNOW THIS?", 
-            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.grey)
-          ),
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildRatingButton("Again", Icons.history, colorSrsAgain, () => _updateCard('again')),
-              _buildRatingButton("Hard", Icons.bolt, colorSrsHard, () => _updateCard('hard')),
-              _buildRatingButton("Easy", Icons.sentiment_satisfied_alt, colorSrsEasy, () => _updateCard('easy')),
-            ],
-          ),
+          _buildRatingButton("Học Lại", Icons.replay, colorSrsAgain, () => _updateCard('again')),
+          _buildRatingButton("Khó", Icons.help_outline, colorSrsHard, () => _updateCard('hard')),
+          _buildRatingButton("Dễ", Icons.check_circle_outline, colorSrsEasy, () => _updateCard('easy')),
         ],
       ),
     );
@@ -387,16 +372,16 @@ class _StudyScreenState extends State<StudyScreen> {
       child: Column(
         children: [
           Container(
-            width: 64, 
-            height: 64,
+            width: 60, height: 60,
             decoration: BoxDecoration(
               color: color.withOpacity(0.1),
               borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: color.withOpacity(0.3)),
             ),
-            child: Icon(icon, color: color, size: 30),
+            child: Icon(icon, color: color, size: 28),
           ),
           const SizedBox(height: 8),
-          Text(label.toUpperCase(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
+          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
         ],
       ),
     );
