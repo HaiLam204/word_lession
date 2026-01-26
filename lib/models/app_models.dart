@@ -42,6 +42,7 @@ class Deck {
 
 class Flashcard {
   final String id;
+  final String deckId; // THÊM DÒNG NÀY
   final String front;
   final String back;
   final String example;
@@ -52,6 +53,7 @@ class Flashcard {
 
   Flashcard({
     required this.id,
+    required this.deckId, 
     required this.front,
     required this.back,
     this.example = '',
@@ -64,6 +66,7 @@ class Flashcard {
   factory Flashcard.fromMap(String id, Map<dynamic, dynamic> data) {
     return Flashcard(
       id: id,
+      deckId: data['deckId'] ?? '',
       front: data['front'] ?? '',
       back: data['back'] ?? '',
       example: data['example'] ?? '',
@@ -76,6 +79,7 @@ class Flashcard {
 
   Map<String, dynamic> toMap() {
     return {
+      'deckId': deckId, 
       'dueDate': dueDate,
       'interval': interval,
       'easeFactor': easeFactor,
