@@ -1,7 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
+import '../../models/app_models.dart';
 
-class LibraryScreen extends StatelessWidget {
+class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
+
+  @override
+  State<LibraryScreen> createState() => _LibraryScreenState();
+}
+
+class _LibraryScreenState extends State<LibraryScreen> {
+  final User? user = FirebaseAuth.instance.currentUser;
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
+
+  String _searchQuery = "";
+  String _filterStatus = "All"; // All, Review, Mastered
 
   final Color primaryColor = const Color(0xFF286D8A);
   final Color accentGold = const Color(0xFFD4AF37);
@@ -15,154 +29,209 @@ class LibraryScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text("Library", style: TextStyle(fontSize: 30, fontWeight: FontWeight.w800, color: textDark)),
-                  Row(
-                    children: [
-                      IconButton(onPressed: (){}, icon: Icon(Icons.tune_rounded, color: Colors.grey[700]), style: IconButton.styleFrom(backgroundColor: Colors.white, padding: const EdgeInsets.all(12))),
-                      const SizedBox(width: 12),
-                      FloatingActionButton.small(onPressed: (){}, backgroundColor: primaryColor, elevation: 2, child: const Icon(Icons.add_rounded, color: Colors.white, size: 24)),
-                    ],
-                  )
-                ],
-              ),
-            ),
-            
-            // Search Bar (Đã sửa lỗi shadow)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Container(
-                // Bọc TextField trong Container để tạo bóng
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10, offset: const Offset(0, 4))
-                  ],
-                ),
-                child: TextField(
-                  decoration: InputDecoration(
-                    filled: true,
-                    fillColor: Colors.white,
-                    prefixIcon: Icon(Icons.search_rounded, color: Colors.grey[400], size: 22),
-                    hintText: "Search terms, tags...",
-                    hintStyle: TextStyle(color: Colors.grey[400], fontWeight: FontWeight.w500),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.grey.shade200)),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    // Đã xóa dòng shadow bị lỗi ở đây
-                  ),
-                ),
-              ),
-            ),
-            
-            // Filter Chips
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
-              child: Row(
-                children: [
-                  _buildChip("All Words", "124", true),
-                  const SizedBox(width: 12),
-                  _buildChip("To Review", "12", false),
-                  const SizedBox(width: 12),
-                  _buildChip("Mastered", "84", false),
-                ],
-              ),
-            ),
-
-            // Word List
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                children: [
-                  _buildWordItem("Ephemeral", "/əˈfem(ə)rəl/ • ADJ", "Lasting for a very short time; fleeting or transitory in nature.", false),
-                  const SizedBox(height: 16),
-                  _buildWordItem("Melancholy", "/ˈmelənkəlē/ • NOUN", "A feeling of pensive sadness, typically with no obvious cause.", true),
-                  const SizedBox(height: 16),
-                  _buildWordItem("Sonder", "/ˈsɒndər/ • NOUN", "The profound realization that everyone, including strangers passed in the street, has a life as complex as one's own.", false),
-                   const SizedBox(height: 40),
-                ],
-              ),
-            ),
+            _buildHeader(),
+            _buildSearchBar(),
+            _buildFilterChips(),
+            Expanded(child: _buildWordList()),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildChip(String label, String count, bool isActive) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: isActive ? primaryColor : Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: isActive ? Colors.transparent : Colors.grey.shade200),
-        boxShadow: isActive ? [BoxShadow(color: primaryColor.withOpacity(0.3), blurRadius: 8, offset: const Offset(0,4))] : null
+  Widget _buildHeader() {
+    return StreamBuilder(
+      stream: _dbRef.child("users/${user!.uid}").onValue,
+      builder: (context, snapshot) {
+        String displayName = "User";
+        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+          final data = snapshot.data!.snapshot.value as Map;
+          try { displayName = data['displayName'] ?? "User"; } catch (_) {}
+        }
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: primaryColor.withOpacity(0.1),
+                      child: Icon(Icons.person, color: primaryColor),
+                    ),
+                    const SizedBox(width: 12),
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text("Thư Viện Của Tôi", style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500)),
+                          Text(displayName, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark), overflow: TextOverflow.ellipsis, maxLines: 1),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Nút chức năng bên phải (nếu cần)
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))]
+        ),
+        child: TextField(
+          onChanged: (value) {
+            setState(() {
+              _searchQuery = value.toLowerCase();
+            });
+          },
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: Colors.transparent,
+            prefixIcon: Icon(Icons.search_rounded, color: Colors.grey[400], size: 22),
+            hintText: "Tìm kiếm từ vựng...",
+            hintStyle: TextStyle(color: Colors.grey[400], fontWeight: FontWeight.w500),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          ),
+        ),
       ),
+    );
+  }
+
+  Widget _buildFilterChips() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
       child: Row(
         children: [
-          Text(label, style: TextStyle(color: isActive ? Colors.white : Colors.grey[700], fontWeight: FontWeight.w700, fontSize: 13)),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: isActive ? Colors.white.withOpacity(0.2) : Colors.grey[100],
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Text(count, style: TextStyle(color: isActive ? Colors.white : Colors.grey[500], fontSize: 11, fontWeight: FontWeight.w800)),
-          )
+          _buildChip("Tất cả", "All"),
+          const SizedBox(width: 12),
+          _buildChip("Cần ôn", "Review"),
+          const SizedBox(width: 12),
+          _buildChip("Đã thuộc", "Mastered"),
         ],
       ),
     );
   }
 
-  Widget _buildWordItem(String word, String pronunciation, String def, bool isMastered) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade100),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 15, offset: const Offset(0, 4))],
+  Widget _buildChip(String label, String status) {
+    bool isActive = _filterStatus == status;
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _filterStatus = status;
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          color: isActive ? primaryColor : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: isActive ? Colors.transparent : Colors.grey.shade200),
+          boxShadow: isActive ? [BoxShadow(color: primaryColor.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))] : null
+        ),
+        child: Text(
+          label,
+          style: TextStyle(color: isActive ? Colors.white : Colors.grey[700], fontWeight: FontWeight.w700, fontSize: 13),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Column(
+    );
+  }
+
+  Widget _buildWordList() {
+    // QUAN TRỌNG: Lọc theo ownerId để chỉ lấy thẻ của user hiện tại
+    return StreamBuilder(
+      stream: _dbRef.child("cards").orderByChild("ownerId").equalTo(user!.uid).onValue,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
+          return Center(child: Text("Chưa có từ vựng nào.", style: TextStyle(color: Colors.grey[400])));
+        }
+
+        List<Flashcard> cards = [];
+        Map data = snapshot.data!.snapshot.value as Map;
+        int now = DateTime.now().millisecondsSinceEpoch;
+
+        data.forEach((key, value) {
+          final card = Flashcard.fromMap(key, value);
+          
+          // Logic tìm kiếm
+          bool matchesSearch = card.front.toLowerCase().contains(_searchQuery) || 
+                               card.back.toLowerCase().contains(_searchQuery);
+          
+          // Logic lọc trạng thái
+          bool matchesFilter = true;
+          if (_filterStatus == "Review") {
+            matchesFilter = card.dueDate <= now;
+          } else if (_filterStatus == "Mastered") {
+            matchesFilter = card.interval > 20; // Giả sử interval > 20 ngày là thuộc
+          }
+
+          if (matchesSearch && matchesFilter) {
+            cards.add(card);
+          }
+        });
+
+        // Sắp xếp từ mới nhất
+        cards.sort((a, b) => b.dueDate.compareTo(a.dueDate));
+
+        return ListView.builder(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          itemCount: cards.length,
+          itemBuilder: (context, index) {
+            final card = cards[index];
+            bool isMastered = card.interval > 20;
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 16),
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.grey.shade100),
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 15, offset: const Offset(0, 4))],
+              ),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(word, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: textDark)),
-                  const SizedBox(height: 4),
-                  Text(pronunciation, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey[400], letterSpacing: 0.5)),
-                ],
-              ),
-              if (isMastered)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(color: accentGold.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-                  child: Row(
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.stars_rounded, color: accentGold, size: 16),
-                      const SizedBox(width: 6),
-                      Text("MASTERED", style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: accentGold, letterSpacing: 0.5)),
+                      Expanded(
+                        child: Text(card.front, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: textDark)),
+                      ),
+                      if (isMastered)
+                        Icon(Icons.stars_rounded, color: accentGold, size: 20)
                     ],
                   ),
-                )
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(def, style: TextStyle(fontSize: 15, color: Colors.grey[700], height: 1.5), maxLines: 3, overflow: TextOverflow.ellipsis),
-        ],
-      ),
+                  const SizedBox(height: 8),
+                  Text(card.back, style: TextStyle(fontSize: 16, color: Colors.grey[800])),
+                  if (card.example.isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      "Example: ${card.example}",
+                      style: TextStyle(fontSize: 14, color: Colors.grey[500], fontStyle: FontStyle.italic),
+                    ),
+                  ]
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
