@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../../models/app_models.dart';
-import 'dart:math';
+import 'flashcard_session_screen.dart';
+import 'new_word_screen.dart';
+import 'quiz_screen.dart';
 
 class StudyScreen extends StatefulWidget {
-  final String? deckId; // Nếu null -> Học Daily Review (chỉ thẻ đến hạn)
+  final String? deckId;
 
   const StudyScreen({super.key, this.deckId});
 
@@ -13,295 +15,187 @@ class StudyScreen extends StatefulWidget {
   State<StudyScreen> createState() => _StudyScreenState();
 }
 
-class _StudyScreenState extends State<StudyScreen> with SingleTickerProviderStateMixin {
-  static const Color colorPrimary = Color(0xFF2B5D78);
-  static const Color colorBgLight = Color(0xFFF9FAFB);
-  static const Color colorSrsAgain = Color(0xFFEF4444);
-  static const Color colorSrsHard = Color(0xFFFACC15);
-  static const Color colorSrsEasy = Color(0xFF22C55E);
-
-  late AnimationController _controller;
-  late Animation<double> _animation;
-  AnimationStatus _animationStatus = AnimationStatus.dismissed;
-  
+class _StudyScreenState extends State<StudyScreen> {
   final User? user = FirebaseAuth.instance.currentUser;
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
-  
-  List<Flashcard> cards = [];
-  int currentIndex = 0;
-  bool isLoading = true;
+
+  final Color primaryColor = const Color(0xFF137FEC);
+  final Color bgLight = const Color(0xFFF6F7F8);
+  final Color textDark = const Color(0xFF101922);
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 600));
-    _animation = Tween<double>(end: 1.0, begin: 0.0).animate(_controller)
-      ..addListener(() { setState(() {}); })
-      ..addStatusListener((status) { _animationStatus = status; });
-    _loadCards();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  Future<void> _loadCards() async {
-    try {
-      int now = DateTime.now().millisecondsSinceEpoch;
-      final snapshot = await _dbRef.child("cards").orderByChild("ownerId").equalTo(user!.uid).get();
-
-      List<Flashcard> loadedCards = [];
-      if (snapshot.exists) {
-        Map data = snapshot.value as Map;
-        data.forEach((key, value) {
-          final card = Flashcard.fromMap(key, value);
-          
-          bool isDue = card.dueDate <= now;
-          
-          // LOGIC LỌC THẺ MỚI:
-          if (widget.deckId == null) {
-            // 1. Daily Review: Chỉ lấy thẻ ĐẾN HẠN
-            if (isDue) loadedCards.add(card);
-          } else {
-            // 2. Deck Study: Lấy TẤT CẢ thẻ của deck đó (để học lại được)
-            if (card.deckId == widget.deckId) {
-              loadedCards.add(card);
-            }
-          }
-        });
-      }
-
-      // SẮP XẾP ƯU TIÊN:
-      // 1. Thẻ đến hạn (Due) lên trước.
-      // 2. Thẻ chưa đến hạn ra sau.
-      loadedCards.sort((a, b) {
-        bool aDue = a.dueDate <= now;
-        bool bDue = b.dueDate <= now;
-        
-        if (aDue && !bDue) return -1; // a lên trước
-        if (!aDue && bDue) return 1;  // b lên trước
-        
-        // Nếu cùng trạng thái, xếp theo thời gian (cũ nhất lên trước)
-        return a.dueDate.compareTo(b.dueDate);
+    if (widget.deckId != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => FlashcardSessionScreen(deckId: widget.deckId)),
+        );
       });
-
-      setState(() {
-        cards = loadedCards;
-        isLoading = false;
-      });
-    } catch (e) {
-      setState(() => isLoading = false);
-      print("Lỗi tải thẻ: $e");
-    }
-  }
-
-  void _flipCard() {
-    if (_animationStatus == AnimationStatus.dismissed) {
-      _controller.forward();
-    } else {
-      _controller.reverse();
-    }
-  }
-
-  void _updateCard(String rating) async {
-    if (currentIndex >= cards.length) return;
-    Flashcard card = cards[currentIndex];
-    int now = DateTime.now().millisecondsSinceEpoch;
-    int newInterval = card.interval;
-    double newEaseFactor = card.easeFactor;
-
-    // Logic SRS cơ bản
-    if (rating == 'again') {
-      newInterval = 1;
-    } else if (rating == 'hard') {
-      newInterval = (card.interval * 1.2).toInt();
-      newEaseFactor = (card.easeFactor - 0.2).clamp(1.3, 2.5);
-    } else if (rating == 'easy') {
-      newInterval = (card.interval * 2.5).toInt();
-      if (newInterval == 0) newInterval = 3;
-      newEaseFactor = (card.easeFactor + 0.1).clamp(1.3, 2.5);
-    }
-
-    int newDueDate = now + (newInterval * 24 * 60 * 60 * 1000);
-    
-    try {
-      await _dbRef.child("cards/${card.id}").update({
-        'dueDate': newDueDate,
-        'interval': newInterval,
-        'easeFactor': newEaseFactor,
-        'status': 'review',
-      });
-
-      setState(() {
-        currentIndex++;
-        if (_animationStatus != AnimationStatus.dismissed) _controller.reset();
-      });
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: $e")));
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-    
-    // Trường hợp deck rỗng (mới tạo chưa có thẻ)
-    if (cards.isEmpty) {
-      return Scaffold(
-        backgroundColor: colorBgLight,
-        appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0, leading: const BackButton(color: Colors.black)),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.sentiment_dissatisfied, size: 80, color: Colors.grey),
-              const SizedBox(height: 16),
-              const Text("Chưa có thẻ nào!", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              const Text("Hãy thêm thẻ mới vào bộ này nhé.", style: TextStyle(color: Colors.grey)),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Quay lại"),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // Trường hợp đã học hết danh sách
-    if (currentIndex >= cards.length) {
-       return Scaffold(
-        backgroundColor: colorBgLight,
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.celebration, size: 80, color: Colors.orange),
-              const SizedBox(height: 16),
-              const Text("Hoàn thành!", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              Text(
-                widget.deckId == null ? "Đã xong bài tập hôm nay." : "Đã ôn tập hết bộ thẻ này.", 
-                style: const TextStyle(color: Colors.grey)
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Về trang chủ"),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    Flashcard currentCard = cards[currentIndex];
-    bool isBackVisible = _animationStatus == AnimationStatus.completed || _animationStatus == AnimationStatus.forward;
+    if (widget.deckId != null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
 
     return Scaffold(
-      backgroundColor: colorBgLight,
+      backgroundColor: bgLight,
       body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Row(
+        child: StreamBuilder(
+          stream: _dbRef.child("cards").orderByChild("ownerId").equalTo(user!.uid).onValue,
+          builder: (context, snapshot) {
+            int dueCount = 0;
+            int newCount = 0;
+            int learnedCount = 0;
+
+            if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+              Map data = snapshot.data!.snapshot.value as Map;
+              int now = DateTime.now().millisecondsSinceEpoch;
+              data.forEach((k, v) {
+                final card = Flashcard.fromMap(k, v);
+                if (card.status == 'new') newCount++;
+                else learnedCount++;
+                
+                if (card.dueDate <= now && card.status != 'new') dueCount++;
+              });
+            }
+
+            return SingleChildScrollView(
+              padding: const EdgeInsets.only(bottom: 100),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  GestureDetector(onTap: () => Navigator.pop(context), child: const Icon(Icons.close, color: colorPrimary, size: 28)),
-                  const Expanded(child: Center(child: Text("SRS LEARNING", style: TextStyle(fontWeight: FontWeight.bold)))),
-                  const SizedBox(width: 28),
+                  _buildHeader(), 
+                  _buildDailyReviewCard(dueCount),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(16, 24, 16, 12),
+                    child: Text("Chế độ học tập", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  ),
+                  _buildLearningModesGrid(dueCount, newCount),
+                  _buildDailyGoalTracker(learnedCount),
                 ],
               ),
-            ),
-            // Progress Bar
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: LinearProgressIndicator(
-                  value: (currentIndex + 1) / cards.length,
-                  backgroundColor: const Color(0xFFEEEEEE),
-                  color: colorPrimary,
-                  minHeight: 6,
-                ),
-              ),
-            ),
-            Expanded(
-              child: Center(
-                child: GestureDetector(
-                  onTap: _flipCard,
-                  child: Transform(
-                    alignment: FractionalOffset.center,
-                    transform: Matrix4.identity()..setEntry(3, 2, 0.001)..rotateY(pi * _animation.value),
-                    child: Container(
-                      width: 320, height: 460,
-                      margin: const EdgeInsets.all(20),
-                      padding: const EdgeInsets.all(32),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 20)],
-                      ),
-                      alignment: Alignment.center,
-                      child: _animation.value <= 0.5 
-                        ? Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                            Text(currentCard.front, textAlign: TextAlign.center, style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold)),
-                            const SizedBox(height: 40),
-                            const Text("CHẠM ĐỂ LẬT", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5, color: Colors.grey)),
-                          ])
-                        : Transform(
-                            alignment: Alignment.center,
-                            transform: Matrix4.identity()..rotateY(pi),
-                            child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                Text(currentCard.back, textAlign: TextAlign.center, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: colorPrimary)),
-                                if (currentCard.example.isNotEmpty) Padding(padding: const EdgeInsets.all(16), child: Text(currentCard.example, textAlign: TextAlign.center, style: const TextStyle(fontStyle: FontStyle.italic, color: Colors.grey)))
-                            ]),
-                          ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            if (isBackVisible)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 30),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildRatingButton("Học Lại", Icons.replay, colorSrsAgain, () => _updateCard('again')),
-                    _buildRatingButton("Khó", Icons.help_outline, colorSrsHard, () => _updateCard('hard')),
-                    _buildRatingButton("Dễ", Icons.check_circle_outline, colorSrsEasy, () => _updateCard('easy')),
-                  ],
-                ),
-              )
-          ],
+            );
+          }
         ),
       ),
     );
   }
 
-  Widget _buildRatingButton(String label, IconData icon, Color color, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
+  Widget _buildHeader() {
+    return StreamBuilder(
+      stream: _dbRef.child("users/${user!.uid}").onValue,
+      builder: (context, snapshot) {
+        String displayName = "User";
+        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
+          final data = snapshot.data!.snapshot.value as Map;
+          try { displayName = data['displayName'] ?? "User"; } catch (_) {}
+        }
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween, 
+            children: [
+              Expanded( 
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: const Color(0xFF3B8C88).withOpacity(0.2),
+                      child: Icon(Icons.person, color:Color(0xFF3B8C88)),
+                    ),
+                    const SizedBox(width: 12), 
+                    Flexible( 
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start, 
+                        children: [
+                          const Text(
+                            "Góc Học Tập", 
+                            style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500)
+                          ),
+                          Text(
+                            displayName,
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF101922)),
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))]
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.notifications_none, color: Colors.grey),
+                  onPressed: () {},
+                ),
+              )
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildDailyReviewCard(int dueCount) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))]),
       child: Column(
         children: [
           Container(
-            width: 60, height: 60,
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: color.withOpacity(0.3)),
-            ),
-            child: Icon(icon, color: color, size: 28),
+            height: 120,
+            decoration: const BoxDecoration(borderRadius: BorderRadius.vertical(top: Radius.circular(16)), gradient: LinearGradient(colors: [Color(0xFF137FEC), Color(0xFF00D4FF)], begin: Alignment.topLeft, end: Alignment.bottomRight)),
+            child: const Center(child: Icon(Icons.history_edu, color: Colors.white54, size: 60)),
           ),
-          const SizedBox(height: 8),
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey)),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Từ cần ôn hôm nay: $dueCount", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark)),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Duy trì chuỗi học tập!", style: TextStyle(color: Colors.grey)),
+                    ElevatedButton(
+                      onPressed: dueCount > 0 ? () { Navigator.push(context, MaterialPageRoute(builder: (context) => const FlashcardSessionScreen())); } : null,
+                      style: ElevatedButton.styleFrom(backgroundColor: primaryColor, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+                      child: const Text("Bắt đầu ôn tập"),
+                    )
+                  ],
+                )
+              ],
+            ),
+          )
         ],
       ),
     );
+  }
+
+  Widget _buildLearningModesGrid(int dueCount, int newCount) {
+    final modes = [
+      {"icon": Icons.update, "color": Colors.blue, "title": "Ôn tập định kỳ", "sub": "$dueCount từ đến hạn", "action": () => Navigator.push(context, MaterialPageRoute(builder: (context) => const FlashcardSessionScreen()))},
+      {"icon": Icons.add_box, "color": Colors.green, "title": "Học từ mới", "sub": "$newCount từ chưa học", "action": () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NewWordScreen()))},
+      {"icon": Icons.quiz, "color": Colors.orange, "title": "Kiểm tra nhanh", "sub": "Quiz trắc nghiệm", "action": () => Navigator.push(context, MaterialPageRoute(builder: (context) => const QuizScreen()))},
+      {"icon": Icons.keyboard_voice, "color": Colors.purple, "title": "Nghe & Viết", "sub": "Đang phát triển...", "action": () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Tính năng đang phát triển!"))); }},
+    ];
+    return GridView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, childAspectRatio: 1.1, crossAxisSpacing: 16, mainAxisSpacing: 16), itemCount: modes.length, itemBuilder: (context, index) { final item = modes[index]; return GestureDetector(onTap: item['action'] as VoidCallback, child: Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 5)]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: (item['color'] as Color).withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Icon(item['icon'] as IconData, color: item['color'] as Color, size: 30)), const Spacer(), Text(item['title'] as String, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textDark)), Text(item['sub'] as String, style: const TextStyle(fontSize: 12, color: Colors.grey))]))); });
+  }
+
+  Widget _buildDailyGoalTracker(int learnedCount) {
+    int goal = 20; double progress = (learnedCount % goal) / goal;
+    return Container(margin: const EdgeInsets.all(16), padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: primaryColor.withOpacity(0.1), borderRadius: BorderRadius.circular(16), border: Border.all(color: primaryColor.withOpacity(0.2))), child: Column(children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text("Tiến độ tổng quan", style: TextStyle(fontWeight: FontWeight.bold, color: textDark)), Text("$learnedCount từ đã học", style: TextStyle(fontWeight: FontWeight.bold, color: primaryColor))]), const SizedBox(height: 10), ClipRRect(borderRadius: BorderRadius.circular(10), child: LinearProgressIndicator(value: progress, backgroundColor: Colors.white, color: primaryColor, minHeight: 10)), const SizedBox(height: 8), const Text("Hãy tiếp tục phát huy nhé!", style: TextStyle(fontSize: 12, color: Colors.grey))]));
   }
 }
