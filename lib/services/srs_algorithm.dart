@@ -1,55 +1,50 @@
 import '../models/app_models.dart';
 
 class SrsResult {
-  final int nextInterval;   
+  final int nextInterval;  
   final double nextEaseFactor; 
-  final int nextDueDate;    
+  final int nextDueDate;   
 
   SrsResult(this.nextInterval, this.nextEaseFactor, this.nextDueDate);
 }
 
 class SrsAlgorithm {
-  static const double minEaseFactor = 1.3; 
-  static const int oneDayMillis = 24 * 60 * 60 * 1000;
+  static const int tenMinutesMillis = 10 * 60 * 1000;  
+  static const int oneDayMillis = 24 * 60 * 60 * 1000; 
 
   static SrsResult calculate(Flashcard card, String rating) {
-    int currentInterval = card.interval;
-    double currentEf = card.easeFactor;
     int now = DateTime.now().millisecondsSinceEpoch;
-
+    
     int nextInterval = 0;
-    double nextEf = currentEf;
-
+    int nextDueDate = now;
+    double nextEaseFactor = card.easeFactor;
+    
     if (rating == 'again') {
       nextInterval = 0; 
-      nextEf = (currentEf - 0.2).clamp(minEaseFactor, 5.0); 
+      nextDueDate = now + tenMinutesMillis;
+      nextEaseFactor = (card.easeFactor - 0.2).clamp(1.3, 2.5);
     } 
     else if (rating == 'hard') {
-      if (currentInterval == 0) {
-        nextInterval = 1; 
+      if (card.interval == 0) {
+        nextInterval = 1;
+        nextDueDate = now + oneDayMillis;
       } else {
-        nextInterval = (currentInterval * 1.2).toInt();
+        nextInterval = (card.interval * 1.2).round();
+        nextDueDate = now + (nextInterval * oneDayMillis);
       }
-      nextEf = (currentEf - 0.15).clamp(minEaseFactor, 5.0);
+      nextEaseFactor = (card.easeFactor - 0.15).clamp(1.3, 2.5);
     } 
     else if (rating == 'easy') {
-      if (currentInterval == 0) {
-        nextInterval = 1; 
-      } else if (currentInterval == 1) {
-        nextInterval = 6; 
+      if (card.interval == 0) {
+        nextInterval = 4;
+        nextDueDate = now + (4 * oneDayMillis);
       } else {
-        nextInterval = (currentInterval * currentEf).round();
+        nextInterval = (card.interval * card.easeFactor * 1.3).round();
+        nextDueDate = now + (nextInterval * oneDayMillis);
       }
-      nextEf = currentEf + 0.15; 
+      nextEaseFactor = (card.easeFactor + 0.15).clamp(1.3, 2.5);
     }
 
-    int nextDueDate;
-    if (nextInterval == 0) {
-      nextDueDate = now + (10 * 60 * 1000);
-    } else {
-      nextDueDate = now + (nextInterval * oneDayMillis);
-    }
-
-    return SrsResult(nextInterval, nextEf, nextDueDate);
+    return SrsResult(nextInterval, nextEaseFactor, nextDueDate);
   }
 }

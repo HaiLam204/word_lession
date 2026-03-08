@@ -56,7 +56,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: const Icon(Icons.translate, size: 40, color: Color(0xFF27CEAF)),
               ),
               const SizedBox(height: 20),
-              const Text("VocabSRS", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF121716))),
               const SizedBox(height: 8),
               const Text("Master your memory, one word at a time.", style: TextStyle(color: Color(0xFF658680))),
               const SizedBox(height: 40),
