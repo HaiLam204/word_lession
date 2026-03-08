@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../../models/app_models.dart';
+import '../../services/auth_service.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
@@ -74,7 +75,21 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   ],
                 ),
               ),
-              // Nút chức năng bên phải (nếu cần)
+              
+              GestureDetector(
+                onTap: () {
+                  AuthService().signOut();
+                },
+                child: Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white, 
+                    shape: BoxShape.circle, 
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))]
+                  ),
+                  child: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
+                ),
+              ),
             ],
           ),
         );

@@ -41,6 +41,7 @@ class _NewWordScreenState extends State<NewWordScreen> with SingleTickerProvider
         final card = Flashcard.fromMap(k, v);
         if (card.status == 'new') temp.add(card);
       });
+      temp.shuffle();
       setState(() {
         newCards = temp;
         isLoading = false;

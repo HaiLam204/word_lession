@@ -6,6 +6,7 @@ import '../../models/app_models.dart';
 import '../study/study_screen.dart';
 import '../create/create_flashcard_screen.dart';
 import '../library/library_screen.dart';
+import '../statistics/statistics_screen.dart';
 
 // --- PHẦN 1: MÀN HÌNH CHÍNH (CONTAINER) ---
 class HomeScreen extends StatefulWidget {
@@ -22,17 +23,13 @@ class _HomeScreenState extends State<HomeScreen> {
     const HomeTabPlaceholder(), 
     const StudyScreen(),
     const LibraryScreen(),
-    const Center(child: Text("Cài đặt")),
+    const StatisticsScreen(),
   ];
 
   void _onItemTapped(int index) {
-    if (index == 3) {
-      AuthService().signOut();
-    } else {
-      setState(() {
-        _selectedIndex = index;
-      });
-    }
+    setState(() {
+      _selectedIndex = index;
+    });
   }
 
   void _switchToStudyTab() {
@@ -71,7 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildNavItem(Icons.home_rounded, "Home", 0),
           _buildNavItem(Icons.auto_stories_rounded, "Study", 1),
           _buildNavItem(Icons.menu_book_rounded, "Library", 2),
-          _buildNavItem(Icons.settings_rounded, "Settings", 3),
+          _buildNavItem(Icons.bar_chart_rounded, "Stats", 3),
         ],
       ),
     );
@@ -122,6 +119,51 @@ class HomeTab extends StatefulWidget {
 class _HomeTabState extends State<HomeTab> {
   final User? user = FirebaseAuth.instance.currentUser;
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
+
+  Future<void> _deleteDeck(String deckId) async {
+    try {
+      final dbRef = FirebaseDatabase.instance.ref();
+
+      await dbRef.child("decks/$deckId").remove();
+
+      final snapshot = await dbRef.child("cards").orderByChild("deckId").equalTo(deckId).get();
+      if (snapshot.exists) {
+        Map data = snapshot.value as Map;
+        for (String cardId in data.keys) {
+          await dbRef.child("cards/$cardId").remove();
+        }
+      }
+
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Đã xóa bộ thẻ và các từ vựng bên trong!"), backgroundColor: Colors.green));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi khi xóa: $e"), backgroundColor: Colors.red));
+    }
+  }
+
+  void _showDeleteDeckConfirm(String deckId, String deckName) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Cảnh báo xóa", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        content: Text("Bạn có chắc chắn muốn xóa bộ thẻ '$deckName' không?\n\nToàn bộ từ vựng trong bộ thẻ này sẽ bị xóa vĩnh viễn và không thể khôi phục!"),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context), 
+            child: const Text("Hủy", style: TextStyle(color: Colors.grey))
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); 
+              _deleteDeck(deckId);    
+            }, 
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
+            child: const Text("Xóa vĩnh viễn", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
+          ),
+        ],
+      )
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -181,19 +223,31 @@ class _HomeTabState extends State<HomeTab> {
                 backgroundColor: const Color(0xFF3B8C88).withOpacity(0.2),
                 child: const Icon(Icons.person, color: Color(0xFF3B8C88)),
               ),
+              const SizedBox(width: 12),
+              
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text("Xin chào", style: TextStyle(fontSize: 12, color: Colors.grey)),
                     Text(displayName, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF131616))),
                   ],
                 ),
               ),
-              Container(
-                width: 40, height: 40,
-                decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))]),
-                child: const Icon(Icons.notifications_none, color: Colors.grey),
+              
+              GestureDetector(
+                onTap: () {
+                  AuthService().signOut();
+                },
+                child: Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white, 
+                    shape: BoxShape.circle, 
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))]
+                  ),
+                  child: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
+                ),
               ),
             ],
           ),
@@ -404,7 +458,15 @@ class _HomeTabState extends State<HomeTab> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(deck.name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                              Expanded(
+                                child: Text(
+                                  deck.name,
+                                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
                               Text("${(progress * 100).toInt()}%", style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF3B8C88))),
                             ],
                           ),
@@ -423,7 +485,12 @@ class _HomeTabState extends State<HomeTab> {
                         ],
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                      onPressed: () => _showDeleteDeckConfirm(deck.id, deck.name),
+                    ),
+                    
                     Icon(Icons.chevron_right, color: Colors.grey.shade400),
                   ],
                 ),

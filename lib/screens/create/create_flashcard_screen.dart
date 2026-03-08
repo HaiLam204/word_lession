@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:excel/excel.dart' as excel_pkg;
+import 'dart:io';
 
 class CreateFlashcardScreen extends StatefulWidget {
   final String? selectedDeckId;
@@ -21,9 +24,10 @@ class _CreateFlashcardScreenState extends State<CreateFlashcardScreen> {
   // State
   bool _isLoading = false;
   bool _isFetchingDecks = true;
-  bool _isCreatingNewDeck = false; // Kiểm soát xem đang chọn list hay tạo mới
+  bool _isCreatingNewDeck = false;
+  bool _isImporting = false;
   
-  String? _selectedDeckId; // ID của deck đang chọn
+  String? _selectedDeckId;
   List<Map<String, dynamic>> _myDecks = []; // Danh sách deck tải từ Firebase
 
   // Firebase
@@ -39,6 +43,15 @@ class _CreateFlashcardScreenState extends State<CreateFlashcardScreen> {
   void initState() {
     super.initState();
     _fetchDecks();
+  }
+
+  @override
+  void dispose() {
+    _frontController.dispose();
+    _backController.dispose();
+    _exampleController.dispose();
+    _newDeckNameController.dispose();
+    super.dispose();
   }
 
   // 1. Tải danh sách Deck từ Firebase về
@@ -166,6 +179,139 @@ class _CreateFlashcardScreenState extends State<CreateFlashcardScreen> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _importFromExcel() async {
+    if (_isCreatingNewDeck && _newDeckNameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Vui lòng nhập tên bộ thẻ trước!"), backgroundColor: Colors.orange));
+      return;
+    }
+
+    if (!_isCreatingNewDeck && _selectedDeckId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Vui lòng chọn một bộ thẻ!"), backgroundColor: Colors.orange));
+      return;
+    }
+
+    setState(() => _isImporting = true);
+
+    try {
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['xlsx', 'xls'],
+      );
+
+      if (result == null) {
+        if (mounted) setState(() => _isImporting = false);
+        return;
+      }
+
+      List<int> bytes;
+      if (result.files.first.bytes != null) {
+        bytes = result.files.first.bytes!;
+      } else if (result.files.first.path != null) {
+        bytes = File(result.files.first.path!).readAsBytesSync();
+      } else {
+        throw Exception("Không thể đọc file");
+      }
+
+      var excel = excel_pkg.Excel.decodeBytes(bytes);
+
+      if (excel.tables.isEmpty) {
+        throw Exception("File Excel không có sheet nào");
+      }
+
+      String uid = user!.uid;
+      int now = DateTime.now().millisecondsSinceEpoch;
+      String finalDeckId = "";
+
+      if (_isCreatingNewDeck) {
+        String deckNameInput = _newDeckNameController.text.trim();
+        DatabaseReference newDeckRef = _dbRef.child("decks").push();
+        finalDeckId = newDeckRef.key!;
+        
+        await newDeckRef.set({
+          "id": finalDeckId,
+          "ownerId": uid,
+          "name": deckNameInput,
+          "cardCount": 0,
+          "createdAt": now,
+        });
+      } else {
+        finalDeckId = _selectedDeckId!;
+      }
+
+      int importedCount = 0;
+      int skippedCount = 0;
+      
+      for (var table in excel.tables.keys) {
+        var sheet = excel.tables[table];
+        if (sheet == null) continue;
+
+        for (var i = 1; i < sheet.maxRows; i++) {
+          var row = sheet.row(i);
+          if (row.isEmpty || row.length < 2) {
+            skippedCount++;
+            continue;
+          }
+
+          String front = row[0]?.value?.toString().trim() ?? "";
+          String back = row[1]?.value?.toString().trim() ?? "";
+          String example = row.length > 2 ? (row[2]?.value?.toString().trim() ?? "") : "";
+
+          if (front.isEmpty || back.isEmpty) {
+            skippedCount++;
+            continue;
+          }
+
+          await _dbRef.child("cards").push().set({
+            "deckId": finalDeckId,
+            "ownerId": uid,
+            "front": front,
+            "back": back,
+            "example": example,
+            "dueDate": now,
+            "interval": 0,
+            "easeFactor": 2.5,
+            "status": "new"
+          });
+
+          importedCount++;
+        }
+      }
+
+      if (importedCount == 0) {
+        throw Exception("Không có thẻ nào được import. Kiểm tra lại định dạng file.");
+      }
+
+      final deckRef = _dbRef.child("decks/$finalDeckId/cardCount");
+      await deckRef.runTransaction((mutableData) {
+        int currentCount = (mutableData ?? 0) as int;
+        return Transaction.success(currentCount + importedCount);
+      });
+
+      if (mounted) {
+        String message = "Đã import $importedCount thẻ thành công!";
+        if (skippedCount > 0) {
+          message += " ($skippedCount dòng bị bỏ qua)";
+        }
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.green));
+        Navigator.pop(context);
+      }
+
+    } catch (e) {
+      print("Lỗi import Excel: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Lỗi import: ${e.toString()}"),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+          )
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isImporting = false);
     }
   }
 
@@ -306,6 +452,51 @@ class _CreateFlashcardScreenState extends State<CreateFlashcardScreen> {
                         elevation: 2,
                       ),
                       child: const Text("Lưu Thẻ", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: OutlinedButton.icon(
+                      onPressed: _isImporting ? null : _importFromExcel,
+                      icon: _isImporting 
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.upload_file),
+                      label: Text(_isImporting ? "Đang import..." : "Import từ Excel"),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: primaryColor,
+                        side: BorderSide(color: primaryColor, width: 2),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.info_outline, size: 16, color: Colors.blue.shade700),
+                            const SizedBox(width: 8),
+                            Text("Định dạng file Excel:", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade700, fontSize: 12)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text("• Cột A: Mặt trước (bắt buộc)", style: TextStyle(fontSize: 11, color: Colors.grey[700])),
+                        Text("• Cột B: Mặt sau (bắt buộc)", style: TextStyle(fontSize: 11, color: Colors.grey[700])),
+                        Text("• Cột C: Ví dụ (tùy chọn)", style: TextStyle(fontSize: 11, color: Colors.grey[700])),
+                        Text("• Dòng đầu tiên sẽ bị bỏ qua (header)", style: TextStyle(fontSize: 11, color: Colors.grey[700])),
+                      ],
                     ),
                   ),
                 ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../../models/app_models.dart';
+import '../../services/auth_service.dart';
 import 'flashcard_session_screen.dart';
 import 'new_word_screen.dart';
 import 'quiz_screen.dart';
@@ -128,16 +129,18 @@ class _StudyScreenState extends State<StudyScreen> {
                 ),
               ),
 
-              Container(
-                width: 40, height: 40,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))]
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.notifications_none, color: Colors.grey),
-                  onPressed: () {},
+              GestureDetector(
+                onTap: () {
+                  AuthService().signOut();
+                },
+                child: Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))]
+                  ),
+                  child: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
                 ),
               )
             ],

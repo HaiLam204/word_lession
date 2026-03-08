@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'services/auth_service.dart';
 import 'screens/auth/login_screen.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'screens/home/home_screen.dart';
 
 void main() async {
@@ -24,8 +25,9 @@ void main() async {
     );
   } else {
     await Firebase.initializeApp();
+    FirebaseDatabase.instance.setPersistenceEnabled(true);
   }
-
+  
   runApp(const WordLessionApp());
 }
 
