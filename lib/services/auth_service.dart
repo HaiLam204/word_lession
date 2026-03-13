@@ -28,8 +28,28 @@ class AuthService {
       "displayName": name,
       "email": email,
       "dailyGoal": 20,
+      "srsIntensity": "Cân bằng",
       "streak": 0,
       "lastStudyDate": 0,
+      "xp": 0,
+      "totalDecks": 1, // Start with 1 because we create a sample deck
+    });
+
+    // Create welcome notifications
+    await _dbRef.child("notifications/$uid").push().set({
+      "title": "Chào mừng bạn!",
+      "message": "Chúc mừng bạn đã tham gia ứng dụng học từ vựng. Hãy bắt đầu học ngay!",
+      "type": "system",
+      "timestamp": now,
+      "isRead": false,
+    });
+
+    await _dbRef.child("notifications/$uid").push().set({
+      "title": "Đến giờ ôn tập rồi!",
+      "message": "Bạn có 2 thẻ mới trong bộ từ vựng mẫu. Hãy bắt đầu học nhé!",
+      "type": "study",
+      "timestamp": now - 3600000, // 1 hour ago
+      "isRead": false,
     });
 
     DatabaseReference newDeckRef = _dbRef.child("decks").push();

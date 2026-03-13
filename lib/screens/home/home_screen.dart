@@ -2,11 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../../services/auth_service.dart';
+import '../../services/notification_service.dart';
+import '../../services/deck_service.dart';
+import '../../services/leaderboard_service.dart';
 import '../../models/app_models.dart';
 import '../study/study_screen.dart';
 import '../create/create_flashcard_screen.dart';
 import '../library/library_screen.dart';
-import '../statistics/statistics_screen.dart';
+import '../community/community_screen.dart';
+import '../settings/settings_screen.dart';
+import '../notifications/notifications_screen.dart';
 
 // --- PHẦN 1: MÀN HÌNH CHÍNH (CONTAINER) ---
 class HomeScreen extends StatefulWidget {
@@ -18,13 +23,63 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
+  bool _notificationsCreated = false;
 
   final List<Widget> _screens = [
     const HomeTabPlaceholder(), 
     const StudyScreen(),
     const LibraryScreen(),
-    const StatisticsScreen(),
+    const CommunityScreen(),
+    const SettingsScreen(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _createSampleNotifications();
+  }
+
+  Future<void> _createSampleNotifications() async {
+    if (_notificationsCreated) return;
+    
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    try {
+      // Check if notifications already exist
+      DatabaseReference notifRef = FirebaseDatabase.instance.ref('notifications/${user.uid}');
+      DataSnapshot snapshot = await notifRef.get();
+      
+      if (!snapshot.exists) {
+        // Create sample notifications
+        NotificationService notificationService = NotificationService();
+        
+        await notificationService.createNotification(
+          userId: user.uid,
+          title: 'Chào mừng bạn!',
+          message: 'Chúc mừng bạn đã tham gia ứng dụng học từ vựng. Hãy bắt đầu học ngay!',
+          type: 'system',
+        );
+        
+        await notificationService.createStudyReminder(user.uid, 2);
+        
+        await notificationService.createNotification(
+          userId: user.uid,
+          title: 'Cập nhật hệ thống',
+          message: 'Phiên bản mới 2.4.1 đã sẵn sàng với nhiều cải tiến về hiệu năng SRS.',
+          type: 'system',
+        );
+        
+        setState(() {
+          _notificationsCreated = true;
+        });
+        
+        print('✅ Đã tạo thông báo mẫu thành công');
+      }
+    } catch (e) {
+      print('❌ Lỗi tạo thông báo: $e');
+    }
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -56,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildBottomNav() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.95),
         border: Border(top: BorderSide(color: Colors.grey.shade200)),
@@ -68,7 +123,8 @@ class _HomeScreenState extends State<HomeScreen> {
           _buildNavItem(Icons.home_rounded, "Home", 0),
           _buildNavItem(Icons.auto_stories_rounded, "Study", 1),
           _buildNavItem(Icons.menu_book_rounded, "Library", 2),
-          _buildNavItem(Icons.bar_chart_rounded, "Stats", 3),
+          _buildNavItem(Icons.people_rounded, "Community", 3),
+          _buildNavItem(Icons.settings_rounded, "Settings", 4),
         ],
       ),
     );
@@ -119,6 +175,8 @@ class HomeTab extends StatefulWidget {
 class _HomeTabState extends State<HomeTab> {
   final User? user = FirebaseAuth.instance.currentUser;
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
+  final DeckService _deckService = DeckService();
+  final LeaderboardService _leaderboardService = LeaderboardService();
 
   Future<void> _deleteDeck(String deckId) async {
     try {
@@ -132,6 +190,11 @@ class _HomeTabState extends State<HomeTab> {
         for (String cardId in data.keys) {
           await dbRef.child("cards/$cardId").remove();
         }
+      }
+
+      // Decrement totalDecks count
+      if (user != null) {
+        await _leaderboardService.decrementDeckCount(user!.uid);
       }
 
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Đã xóa bộ thẻ và các từ vựng bên trong!"), backgroundColor: Colors.green));
@@ -163,6 +226,196 @@ class _HomeTabState extends State<HomeTab> {
         ],
       )
     );
+  }
+
+  void _showShareDialog(String deckId, String deckName, bool isCurrentlyPublic) {
+    if (isCurrentlyPublic) {
+      // Unshare dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text(
+            "Hủy chia sẻ",
+            style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            "Bạn có muốn hủy chia sẻ bộ thẻ '$deckName' không?\n\nBộ thẻ sẽ không còn hiển thị trong cộng đồng.",
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Hủy", style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                try {
+                  await _deckService.unshareDeck(deckId);
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Đã hủy chia sẻ bộ thẻ!"),
+                        backgroundColor: Colors.orange,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Lỗi: $e"), backgroundColor: Colors.red),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text(
+                "Hủy chia sẻ",
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Share dialog with description and tags
+      _showShareFormDialog(deckId, deckName);
+    }
+  }
+
+  void _showShareFormDialog(String deckId, String deckName) {
+    final TextEditingController descController = TextEditingController();
+    List<String> selectedTags = [];
+    final List<String> availableTags = [
+      'TOEIC',
+      'IELTS',
+      'Giao tiếp',
+      'IT',
+      'Business',
+      'Du lịch',
+      'Học thuật',
+      'Tiếng lóng',
+      'Phát âm',
+      'Ngữ pháp',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text(
+            "Chia sẻ bộ thẻ",
+            style: TextStyle(color: Color(0xFF3B8C88), fontWeight: FontWeight.bold),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Bộ thẻ: $deckName",
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const SizedBox(height: 16),
+                const Text("Mô tả (tùy chọn):", style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: descController,
+                  maxLines: 3,
+                  decoration: InputDecoration(
+                    hintText: "Mô tả ngắn về bộ thẻ này...",
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    contentPadding: const EdgeInsets.all(12),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text("Chọn tags:", style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: availableTags.map((tag) {
+                    bool isSelected = selectedTags.contains(tag);
+                    return FilterChip(
+                      label: Text(tag),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            selectedTags.add(tag);
+                          } else {
+                            selectedTags.remove(tag);
+                          }
+                        });
+                      },
+                      selectedColor: const Color(0xFF3B8C88).withOpacity(0.3),
+                      checkmarkColor: const Color(0xFF3B8C88),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          actions: [
+            TextButton(
+              onPressed: () {
+                descController.dispose();
+                Navigator.pop(context);
+              },
+              child: const Text("Hủy", style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                String description = descController.text.trim();
+                Navigator.pop(context);
+                
+                try {
+                  await _deckService.shareDeck(
+                    deckId,
+                    description: description.isEmpty ? null : description,
+                    tags: selectedTags.isEmpty ? null : selectedTags,
+                  );
+                  
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text("Đã chia sẻ bộ thẻ lên cộng đồng!"),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Lỗi: $e"), backgroundColor: Colors.red),
+                    );
+                  }
+                } finally {
+                  descController.dispose();
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF3B8C88),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text(
+                "Chia sẻ",
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper method to check if deck is copied from community
+  bool _isCopiedDeck(Deck deck) {
+    return deck.copiedFrom != null && deck.copiedFrom!.isNotEmpty;
   }
 
   @override
@@ -220,8 +473,11 @@ class _HomeTabState extends State<HomeTab> {
             children: [
               CircleAvatar(
                 radius: 20,
-                backgroundColor: const Color(0xFF3B8C88).withOpacity(0.2),
-                child: const Icon(Icons.person, color: Color(0xFF3B8C88)),
+                backgroundColor: const Color(0xFF3B8C88),
+                child: Text(
+                  displayName.substring(0, 1).toUpperCase(),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                ),
               ),
               const SizedBox(width: 12),
               
@@ -237,7 +493,10 @@ class _HomeTabState extends State<HomeTab> {
               
               GestureDetector(
                 onTap: () {
-                  AuthService().signOut();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+                  );
                 },
                 child: Container(
                   width: 40, height: 40,
@@ -246,7 +505,7 @@ class _HomeTabState extends State<HomeTab> {
                     shape: BoxShape.circle, 
                     boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))]
                   ),
-                  child: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
+                  child: const Icon(Icons.notifications_outlined, color: Color(0xFF3B8C88), size: 20),
                 ),
               ),
             ],
@@ -485,6 +744,16 @@ class _HomeTabState extends State<HomeTab> {
                         ],
                       ),
                     ),
+                    
+                    // Share button (only for user's own decks, not system decks, not copied decks)
+                    if (!isSystem && !_isCopiedDeck(deck))
+                      IconButton(
+                        icon: Icon(
+                          deck.isPublic ? Icons.public : Icons.public_off,
+                          color: deck.isPublic ? const Color(0xFF3B8C88) : Colors.grey,
+                        ),
+                        onPressed: () => _showShareDialog(deck.id, deck.name, deck.isPublic),
+                      ),
                     
                     IconButton(
                       icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
