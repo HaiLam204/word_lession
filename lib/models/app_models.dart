@@ -4,6 +4,8 @@ class AppUser {
   final String email;
   final int streak;
   final int dailyGoal;
+  final int xp;
+  final int totalDecks;
 
   AppUser({
     required this.id,
@@ -11,6 +13,8 @@ class AppUser {
     required this.email,
     this.streak = 0,
     this.dailyGoal = 20,
+    this.xp = 0,
+    this.totalDecks = 0,
   });
 
   factory AppUser.fromMap(Map<dynamic, dynamic> data) {
@@ -20,6 +24,8 @@ class AppUser {
       email: data['email'] ?? '',
       streak: data['streak'] ?? 0,
       dailyGoal: data['dailyGoal'] ?? 20,
+      xp: data['xp'] ?? 0,
+      totalDecks: data['totalDecks'] ?? 0,
     );
   }
 }
@@ -28,14 +34,49 @@ class Deck {
   final String id;
   final String name;
   final int cardCount;
+  final bool isPublic;
+  final String? copiedFrom;
+  final String? description;
+  final List<String>? tags;
+  final double rating;
+  final int ratingCount;
+  final int likes;
+  final int saves;
 
-  Deck({required this.id, required this.name, required this.cardCount});
+  Deck({
+    required this.id,
+    required this.name,
+    required this.cardCount,
+    this.isPublic = false,
+    this.copiedFrom,
+    this.description,
+    this.tags,
+    this.rating = 0.0,
+    this.ratingCount = 0,
+    this.likes = 0,
+    this.saves = 0,
+  });
 
   factory Deck.fromMap(String id, Map<dynamic, dynamic> data) {
+    List<String> tagsList = [];
+    if (data['tags'] != null) {
+      if (data['tags'] is List) {
+        tagsList = List<String>.from(data['tags']);
+      }
+    }
+    
     return Deck(
       id: id,
       name: data['name'] ?? 'Untitled Deck',
       cardCount: data['cardCount'] ?? 0,
+      isPublic: data['isPublic'] ?? false,
+      copiedFrom: data['copiedFrom'],
+      description: data['description'],
+      tags: tagsList.isEmpty ? null : tagsList,
+      rating: (data['rating'] ?? 0.0).toDouble(),
+      ratingCount: data['ratingCount'] ?? 0,
+      likes: data['likes'] ?? 0,
+      saves: data['saves'] ?? 0,
     );
   }
 }

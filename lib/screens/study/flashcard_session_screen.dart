@@ -3,7 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter_tts/flutter_tts.dart'; // 1. Import thư viện
 import '../../models/app_models.dart';
-import '../../services/srs_algorithm.dart'; 
+import '../../services/srs_algorithm.dart';
+import '../../services/leaderboard_service.dart';
+import '../../services/streak_service.dart';
 import 'dart:math';
 
 class FlashcardSessionScreen extends StatefulWidget {
@@ -34,10 +36,14 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen> with Si
   // Firebase
   final User? user = FirebaseAuth.instance.currentUser;
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
+  final LeaderboardService _leaderboardService = LeaderboardService();
+  final StreakService _streakService = StreakService();
   
   List<Flashcard> cards = [];
   int currentIndex = 0;
   bool isLoading = true;
+  String _srsIntensity = 'Cân bằng'; // SRS intensity from user settings
+  int _sessionXP = 0; // Track XP earned in this session
 
   @override
   void initState() {
@@ -52,7 +58,24 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen> with Si
     // Cấu hình TTS
     _initTts();
 
+    _loadUserSettings();
     _loadCards();
+  }
+
+  // Load user SRS intensity setting
+  Future<void> _loadUserSettings() async {
+    if (user != null) {
+      try {
+        DataSnapshot snapshot = await _dbRef.child('users/${user!.uid}/srsIntensity').get();
+        if (snapshot.exists && mounted) {
+          setState(() {
+            _srsIntensity = snapshot.value as String? ?? 'Cân bằng';
+          });
+        }
+      } catch (e) {
+        print("Lỗi load settings: $e");
+      }
+    }
   }
 
   // 3. Hàm cài đặt TTS
@@ -146,8 +169,11 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen> with Si
     if (currentIndex >= cards.length) return;
     Flashcard card = cards[currentIndex];
     
+    // Calculate XP based on card status and rating
+    int xpEarned = _calculateXP(card, rating);
+    
     if (card.id.isNotEmpty && user != null) { 
-       SrsResult result = SrsAlgorithm.calculate(card, rating);
+       SrsResult result = SrsAlgorithm.calculate(card, rating, intensity: _srsIntensity);
 
        String newStatus = card.status;
        if (card.status == 'new') {
@@ -164,6 +190,14 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen> with Si
            'status': newStatus,
            'lastReviewed': DateTime.now().millisecondsSinceEpoch
          });
+         
+         // Add XP to user
+         if (xpEarned > 0) {
+           await _leaderboardService.addXP(user!.uid, xpEarned);
+           setState(() {
+             _sessionXP += xpEarned;
+           });
+         }
        } catch (e) {
          print("Lỗi lưu: $e");
        }
@@ -173,6 +207,55 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen> with Si
       currentIndex++;
       if (_animationStatus != AnimationStatus.dismissed) _controller.reset();
     });
+    
+    // Check if session completed
+    if (currentIndex >= cards.length) {
+      _completeSession();
+    }
+  }
+
+  int _calculateXP(Flashcard card, String rating) {
+    // XP calculation logic
+    int baseXP = 0;
+    
+    if (card.status == 'new') {
+      // New card: 10 XP
+      baseXP = 10;
+    } else {
+      // Review card: 5 XP
+      baseXP = 5;
+    }
+    
+    // Bonus for good/easy ratings
+    if (rating == 'easy') {
+      baseXP += 3;
+    } else if (rating == 'good') {
+      baseXP += 1;
+    }
+    
+    return baseXP;
+  }
+
+  Future<void> _completeSession() async {
+    // Session completion bonus: 50 XP
+    const int sessionBonus = 50;
+    
+    if (user != null) {
+      try {
+        // Add XP bonus
+        await _leaderboardService.addXP(user!.uid, sessionBonus);
+        setState(() {
+          _sessionXP += sessionBonus;
+        });
+        
+        // Update streak
+        await _streakService.updateStreak(user!.uid);
+        
+        print('✅ Session completed: +$sessionBonus XP, Streak updated');
+      } catch (e) {
+        print("Lỗi hoàn thành session: $e");
+      }
+    }
   }
 
   @override
@@ -213,6 +296,43 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen> with Si
               const Text("Hoàn thành xuất sắc!", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
               const Text("Bạn đã ôn tập hết các thẻ trong danh sách.", style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    const Text(
+                      '🎉 XP Kiếm Được',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '+$_sessionXP XP',
+                      style: const TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF3E8F8B),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${cards.length} thẻ đã học',
+                      style: const TextStyle(fontSize: 14, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 24),
               ElevatedButton(onPressed: () => Navigator.pop(context), child: const Text("Về trang chủ")),
             ],

@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../../models/app_models.dart';
 import '../../services/auth_service.dart';
+import '../notifications/notifications_screen.dart';
 import 'flashcard_session_screen.dart';
 import 'new_word_screen.dart';
 import 'quiz_screen.dart';
@@ -63,21 +64,27 @@ class _StudyScreenState extends State<StudyScreen> {
               });
             }
 
-            return SingleChildScrollView(
-              padding: const EdgeInsets.only(bottom: 100),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildHeader(), 
-                  _buildDailyReviewCard(dueCount),
-                  const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 24, 16, 12),
-                    child: Text("Chế độ học tập", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            return Column(
+              children: [
+                _buildHeader(),
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.only(bottom: 100),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildDailyReviewCard(dueCount),
+                        const Padding(
+                          padding: EdgeInsets.fromLTRB(16, 24, 16, 12),
+                          child: Text("Chế độ học tập", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        ),
+                        _buildLearningModesGrid(dueCount, newCount),
+                        _buildDailyGoalTracker(learnedCount),
+                      ],
+                    ),
                   ),
-                  _buildLearningModesGrid(dueCount, newCount),
-                  _buildDailyGoalTracker(learnedCount),
-                ],
-              ),
+                ),
+              ],
             );
           }
         ),
@@ -86,67 +93,49 @@ class _StudyScreenState extends State<StudyScreen> {
   }
 
   Widget _buildHeader() {
-    return StreamBuilder(
-      stream: _dbRef.child("users/${user!.uid}").onValue,
-      builder: (context, snapshot) {
-        String displayName = "User";
-        if (snapshot.hasData && snapshot.data!.snapshot.value != null) {
-          final data = snapshot.data!.snapshot.value as Map;
-          try { displayName = data['displayName'] ?? "User"; } catch (_) {}
-        }
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween, 
-            children: [
-              Expanded( 
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: const Color(0xFF3B8C88).withOpacity(0.2),
-                      child: Icon(Icons.person, color:Color(0xFF3B8C88)),
-                    ),
-                    const SizedBox(width: 12), 
-                    Flexible( 
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start, 
-                        children: [
-                          const Text(
-                            "Góc Học Tập", 
-                            style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500)
-                          ),
-                          Text(
-                            displayName,
-                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF101922)),
-                            overflow: TextOverflow.ellipsis,
-                            maxLines: 1,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              GestureDetector(
-                onTap: () {
-                  AuthService().signOut();
-                },
-                child: Container(
-                  width: 40, height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4, offset: const Offset(0, 2))]
-                  ),
-                  child: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
-                ),
-              )
-            ],
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
-        );
-      },
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const SizedBox(width: 40), // Spacer for alignment
+          const Text(
+            'Học tập',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF333333),
+            ),
+          ),
+          GestureDetector(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+              );
+            },
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFF3E8F8B).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.notifications_outlined, color: Color(0xFF3E8F8B)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
