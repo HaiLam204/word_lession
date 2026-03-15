@@ -15,6 +15,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   final AuthService _authService = AuthService();
   bool _isLoading = false;
+  bool _isGoogleLoading = false;
   bool _isPasswordVisible = false;
 
   void _handleLogin() async {
@@ -33,6 +34,20 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _handleGoogleSignIn() async {
+    setState(() => _isGoogleLoading = true);
+    try {
+      await _authService.signInWithGoogle();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Lỗi đăng nhập Google: $e'), backgroundColor: Colors.red));
+      }
+    } finally {
+      if (mounted) setState(() => _isGoogleLoading = false);
     }
   }
 
@@ -125,6 +140,44 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: const Text("Sign Up", style: TextStyle(color: Color(0xFF27CEAF), fontWeight: FontWeight.bold)),
                 ),
               ]),
+              const SizedBox(height: 24),
+              Row(children: [
+                Expanded(child: Divider(color: Colors.grey.shade300)),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12),
+                  child: Text('hoặc', style: TextStyle(color: Color(0xFF658680))),
+                ),
+                Expanded(child: Divider(color: Colors.grey.shade300)),
+              ]),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: OutlinedButton(
+                  onPressed: _isGoogleLoading ? null : _handleGoogleSignIn,
+                  style: OutlinedButton.styleFrom(
+                    side: BorderSide(color: Colors.grey.shade300),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _isGoogleLoading
+                      ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Image.network(
+                              'https://www.google.com/favicon.ico',
+                              width: 24, height: 24,
+                              errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 28, color: Colors.red),
+                            ),
+                            const SizedBox(width: 12),
+                            const Text(
+                              'Đăng nhập với Google',
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF121716)),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
               const SizedBox(height: 20),
             ],
           ),

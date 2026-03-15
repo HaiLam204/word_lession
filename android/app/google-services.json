@@ -13,7 +13,20 @@
           "package_name": "com.example.word_lession"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "414162632829-c2e0677st3akguha3jkpbqj3tprj17dg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.word_lession",
+            "certificate_hash": "3b4fa78540643e037e5ffd8a6c4fd16590e42f3e"
+          }
+        },
+        {
+          "client_id": "414162632829-otudo5nlg3g91ujaa8e58oiugskmv1up.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyChUlD7fHw9M7-XrI9NBcqVLMM2bXit1U8"
@@ -21,7 +34,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "414162632829-otudo5nlg3g91ujaa8e58oiugskmv1up.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "414162632829-la8m6qjbf84pfqha92gopa4bv6aftreh.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.wordLession"
+              }
+            }
+          ]
         }
       }
     }

@@ -112,6 +112,21 @@ class LeaderboardService {
     }
   }
 
+  // Subtract XP (never go below 0)
+  Future<void> subtractXP(String userId, int xpToSubtract) async {
+    try {
+      DataSnapshot snapshot = await _dbRef.child('users/$userId/xp').get();
+      int currentXP = 0;
+      if (snapshot.exists) {
+        currentXP = (snapshot.value as num).toInt();
+      }
+      int newXP = (currentXP - xpToSubtract).clamp(0, 999999);
+      await _dbRef.child('users/$userId/xp').set(newXP);
+    } catch (e) {
+      print('Lỗi trừ XP: $e');
+    }
+  }
+
   // Update total decks count (call this when user creates a deck)
   Future<void> incrementDeckCount(String userId) async {
     try {

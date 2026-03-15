@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../../services/auth_service.dart';
+import '../../services/admin_service.dart';
 import '../../models/app_models.dart';
 import '../statistics/statistics_screen.dart';
 import '../test/test_notification_screen.dart';
@@ -24,6 +25,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _isDarkMode = false;
   int _dailyGoal = 20;
   String _srsIntensity = 'Cân bằng';
+  bool _isAdmin = false;
 
   @override
   void initState() {
@@ -41,6 +43,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _currentUser = AppUser.fromMap(userData);
           _dailyGoal = _currentUser?.dailyGoal ?? 20;
           _srsIntensity = userData['srsIntensity'] ?? 'Cân bằng';
+        });
+      }
+      
+      // Check admin status
+      bool adminStatus = await AdminService.isAdmin();
+      if (mounted) {
+        setState(() {
+          _isAdmin = adminStatus;
         });
       }
     }
@@ -436,31 +446,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ]),
                   const SizedBox(height: 24),
 
-                  // Developer Tools
-                  _buildSectionHeader('CÔNG CỤ PHÁT TRIỂN'),
-                  _buildSettingsCard([
-                    _buildSimpleItem(
-                      icon: Icons.bug_report,
-                      title: 'Test Thông báo',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const TestNotificationScreen()),
-                        );
-                      },
+                  // Developer Tools - Admin only
+                  if (_isAdmin) ...[
+                    _buildSectionHeader('CÔNG CỤ PHÁT TRIỂN'),
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.red.withOpacity(0.3)),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.admin_panel_settings, color: Colors.red, size: 16),
+                          SizedBox(width: 8),
+                          Text(
+                            'Chỉ dành cho Admin',
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    _buildSimpleItem(
-                      icon: Icons.emoji_events,
-                      title: 'Test XP & Leaderboard',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => const TestXPScreen()),
-                        );
-                      },
-                    ),
-                  ]),
-                  const SizedBox(height: 24),
+                    _buildSettingsCard([
+                      _buildSimpleItem(
+                        icon: Icons.bug_report,
+                        title: 'Test Thông báo',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const TestNotificationScreen()),
+                          );
+                        },
+                      ),
+                      _buildSimpleItem(
+                        icon: Icons.emoji_events,
+                        title: 'Test XP & Leaderboard',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const TestXPScreen()),
+                          );
+                        },
+                      ),
+                    ]),
+                    const SizedBox(height: 24),
+                  ],
 
                   // Notifications
                   _buildSectionHeader('THÔNG BÁO'),
