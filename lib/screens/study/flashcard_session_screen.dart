@@ -129,9 +129,10 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
           final card = Flashcard.fromMap(key, value);
           allBacks.add(card.back);
           if (widget.deckId != null || card.dueDate <= now) {
-            if (card.status == 'review') {
+            // Khi học theo deck cụ thể: chỉ load cards chưa đến hạn ôn hoặc còn mới
+            if (card.status == 'review' && card.dueDate <= now) {
               reviewCards.add(card);
-            } else {
+            } else if (card.status != 'review') {
               newCards.add(card);
             }
           }

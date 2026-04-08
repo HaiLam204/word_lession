@@ -598,7 +598,7 @@ class _HomeTabState extends State<HomeTab> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 1. DECK CỦA TÔI
+        // DECK CỦA TÔI
         const Padding(
           padding: EdgeInsets.only(bottom: 12),
           child: Text("Bộ thẻ của tôi", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey)),
@@ -617,40 +617,21 @@ class _HomeTabState extends State<HomeTab> {
             return _buildDeckListFromSnapshot(snapshot);
           },
         ),
-
-        const SizedBox(height: 24),
-
-        // 2. DECK MẶC ĐỊNH
-        const Padding(
-          padding: EdgeInsets.only(bottom: 12),
-          child: Text("Bộ thẻ mẫu (System)", style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey)),
-        ),
-        StreamBuilder(
-          stream: _dbRef.child("decks").orderByChild("ownerId").equalTo("admin").onValue,
-          builder: (context, snapshot) {
-            if (!snapshot.hasData || snapshot.data!.snapshot.value == null) {
-              return const Padding(padding: EdgeInsets.all(8.0), child: Text("Chưa có thẻ mẫu.", style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)));
-            }
-            return _buildDeckListFromSnapshot(snapshot, isSystem: true);
-          },
-        ),
       ],
     );
   }
 
   // --- HÀM HELPER ĐỂ HIỂN THỊ LIST DECK + THANH TIẾN ĐỘ ---
-  Widget _buildDeckListFromSnapshot(AsyncSnapshot snapshot, {bool isSystem = false}) {
+  Widget _buildDeckListFromSnapshot(AsyncSnapshot snapshot) {
     Map data = snapshot.data!.snapshot.value as Map;
     List<Deck> decks = [];
     data.forEach((key, value) => decks.add(Deck.fromMap(key, value)));
     decks.sort((a, b) => a.name.compareTo(b.name));
 
-    // StreamBuilder thứ 2 để lấy dữ liệu Cards (tính tiến độ)
     return StreamBuilder(
       stream: _dbRef.child("cards").orderByChild("ownerId").equalTo(user!.uid).onValue,
       builder: (context, cardSnapshot) {
         
-        // Map lưu tiến độ: DeckID -> {total: 10, learned: 5}
         Map<String, Map<String, int>> deckProgress = {};
 
         if (cardSnapshot.hasData && cardSnapshot.data!.snapshot.value != null) {
@@ -661,11 +642,7 @@ class _HomeTabState extends State<HomeTab> {
             if (!deckProgress.containsKey(card.deckId)) {
               deckProgress[card.deckId] = {"total": 0, "learned": 0};
             }
-            
-            // Đếm tổng số thẻ trong deck (Dựa trên dữ liệu thực tế)
             deckProgress[card.deckId]!["total"] = (deckProgress[card.deckId]!["total"] ?? 0) + 1;
-            
-            // ĐẾM THẺ ĐÃ HỌC: Bất kỳ thẻ nào trạng thái khác 'new'
             if (card.status != 'new') {
               deckProgress[card.deckId]!["learned"] = (deckProgress[card.deckId]!["learned"] ?? 0) + 1;
             }
@@ -696,18 +673,17 @@ class _HomeTabState extends State<HomeTab> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: isSystem ? Colors.blue.withOpacity(0.3) : Colors.grey.shade100),
-                  boxShadow: [if(isSystem) BoxShadow(color: Colors.blue.withOpacity(0.05), blurRadius: 10)],
+                  border: Border.all(color: Colors.grey.shade100),
                 ),
                 child: Row(
                   children: [
                     Container(
                       width: 48, height: 48,
                       decoration: BoxDecoration(
-                        color: (isSystem ? Colors.blue : const Color(0xFFF0AE9A)).withOpacity(0.15),
+                        color: const Color(0xFFF0AE9A).withOpacity(0.15),
                         borderRadius: BorderRadius.circular(12)
                       ),
-                      child: Icon(isSystem ? Icons.verified : Icons.folder_copy, color: isSystem ? Colors.blue : const Color(0xFFF0AE9A), size: 24),
+                      child: const Icon(Icons.folder_copy, color: Color(0xFFF0AE9A), size: 24),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -745,8 +721,8 @@ class _HomeTabState extends State<HomeTab> {
                       ),
                     ),
                     
-                    // Share button (only for user's own decks, not system decks, not copied decks)
-                    if (!isSystem && !_isCopiedDeck(deck))
+                    // Share button (only for user's own decks, not copied decks)
+                    if (!_isCopiedDeck(deck))
                       IconButton(
                         icon: Icon(
                           deck.isPublic ? Icons.public : Icons.public_off,

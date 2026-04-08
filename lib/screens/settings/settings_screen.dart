@@ -574,13 +574,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  const Center(
-                    child: Text(
-                      'Phiên bản 2.4.1 (Ổn định)',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
-                    ),
-                  ),
                   const SizedBox(height: 24),
                 ],
               ),
