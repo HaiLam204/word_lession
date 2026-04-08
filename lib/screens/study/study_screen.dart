@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../../models/app_models.dart';
-import '../../services/auth_service.dart';
 import '../notifications/notifications_screen.dart';
 import 'flashcard_session_screen.dart';
-import 'new_word_screen.dart';
 import 'quiz_screen.dart';
 
 class StudyScreen extends StatefulWidget {
@@ -179,9 +177,7 @@ class _StudyScreenState extends State<StudyScreen> {
   Widget _buildLearningModesGrid(int dueCount, int newCount) {
     final modes = [
       {"icon": Icons.update, "color": Colors.blue, "title": "Ôn tập định kỳ", "sub": "$dueCount từ đến hạn", "action": () => Navigator.push(context, MaterialPageRoute(builder: (context) => const FlashcardSessionScreen()))},
-      {"icon": Icons.add_box, "color": Colors.green, "title": "Học từ mới", "sub": "$newCount từ chưa học", "action": () => Navigator.push(context, MaterialPageRoute(builder: (context) => const NewWordScreen()))},
       {"icon": Icons.quiz, "color": Colors.orange, "title": "Kiểm tra nhanh", "sub": "Quiz trắc nghiệm", "action": () => Navigator.push(context, MaterialPageRoute(builder: (context) => const QuizScreen()))},
-      {"icon": Icons.keyboard_voice, "color": Colors.purple, "title": "Nghe & Viết", "sub": "Đang phát triển...", "action": () { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Tính năng đang phát triển!"))); }},
     ];
     return GridView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), shrinkWrap: true, physics: const NeverScrollableScrollPhysics(), gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, childAspectRatio: 1.1, crossAxisSpacing: 16, mainAxisSpacing: 16), itemCount: modes.length, itemBuilder: (context, index) { final item = modes[index]; return GestureDetector(onTap: item['action'] as VoidCallback, child: Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.grey.shade200), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 5)]), child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: (item['color'] as Color).withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Icon(item['icon'] as IconData, color: item['color'] as Color, size: 30)), const Spacer(), Text(item['title'] as String, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textDark)), Text(item['sub'] as String, style: const TextStyle(fontSize: 12, color: Colors.grey))]))); });
   }
