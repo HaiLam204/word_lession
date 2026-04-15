@@ -20,9 +20,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
   
   AppUser? _currentUser;
-  bool _studyReminder = true;
-  bool _communityAlerts = false;
-  bool _isDarkMode = false;
   int _dailyGoal = 20;
   String _srsIntensity = 'Cân bằng';
   bool _isAdmin = false;
@@ -497,53 +494,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     const SizedBox(height: 24),
                   ],
 
-                  // Notifications
-                  _buildSectionHeader('THÔNG BÁO'),
-                  _buildSettingsCard([
-                    _buildSwitchItem(
-                      icon: Icons.notifications_active,
-                      iconColor: const Color(0xFF27CEAF),
-                      title: 'Nhắc nhở học tập',
-                      value: _studyReminder,
-                      onChanged: (value) => setState(() => _studyReminder = value),
-                    ),
-                    const Divider(height: 1),
-                    _buildSwitchItem(
-                      icon: Icons.people_outline,
-                      iconColor: Colors.grey,
-                      title: 'Cảnh báo cộng đồng',
-                      value: _communityAlerts,
-                      onChanged: (value) => setState(() => _communityAlerts = value),
-                    ),
-                  ]),
-                  const SizedBox(height: 24),
+                  // Notifications - removed (UI only)
 
-                  // Appearance
-                  _buildSectionHeader('GIAO DIỆN'),
-                  _buildSettingsCard([
-                    _buildSettingItem(
-                      icon: _isDarkMode ? Icons.dark_mode : Icons.light_mode,
-                      iconColor: const Color(0xFF27CEAF),
-                      title: 'Giao diện sáng/tối',
-                      trailing: _isDarkMode ? 'Tối' : 'Sáng',
-                      onTap: () => setState(() => _isDarkMode = !_isDarkMode),
-                    ),
-                  ]),
-                  const SizedBox(height: 24),
+                  // Appearance - removed (UI only)
 
                   // Support
                   _buildSectionHeader('HỖ TRỢ'),
                   _buildSettingsCard([
-                    _buildSimpleItem(
-                      icon: Icons.help_outline,
-                      title: 'Trung tâm trợ giúp',
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Tính năng đang phát triển')),
-                        );
-                      },
-                    ),
-                    const Divider(height: 1),
                     _buildSimpleItem(
                       icon: Icons.info_outline,
                       title: 'Về ứng dụng học từ vựng',

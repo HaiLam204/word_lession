@@ -23,7 +23,6 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
   static const Color colorCorrect = Color(0xFF22C55E);
   static const Color colorWrong = Color(0xFFEF4444);
 
-  // Animation (dùng cho flip card - chỉ khi học thẻ mới)
   late AnimationController _controller;
   late Animation<double> _animation;
   AnimationStatus _animationStatus = AnimationStatus.dismissed;
@@ -34,24 +33,21 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
   final LeaderboardService _leaderboardService = LeaderboardService();
   final StreakService _streakService = StreakService();
 
-  List<Flashcard> _newCards = [];      // status: new / learning
-  List<Flashcard> _reviewCards = [];   // status: review
+  List<Flashcard> _newCards = [];     
+  List<Flashcard> _reviewCards = [];   
   int _newIndex = 0;
   int _reviewIndex = 0;
   bool _isLoading = true;
   String _srsIntensity = 'Cân bằng';
 
-  // XP tracking
   int _sessionXP = 0;
-  int _xpDelta = 0; // +/- hiển thị tạm thời
+  int _xpDelta = 0;
 
-  // Quiz state (cho review cards)
   List<String> _quizOptions = [];
-  int? _selectedOption;   // index đã chọn
+  int? _selectedOption;   
   bool _quizAnswered = false;
   bool _quizCorrect = false;
 
-  // Tất cả back values để tạo wrong answers
   List<String> _allBackValues = [];
 
   bool get _isReviewMode => _newIndex >= _newCards.length;
@@ -129,7 +125,6 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
           final card = Flashcard.fromMap(key, value);
           allBacks.add(card.back);
           if (widget.deckId != null || card.dueDate <= now) {
-            // Khi học theo deck cụ thể: chỉ load cards chưa đến hạn ôn hoặc còn mới
             if (card.status == 'review' && card.dueDate <= now) {
               reviewCards.add(card);
             } else if (card.status != 'review') {
@@ -139,7 +134,6 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
         });
       }
 
-      // Lấy thêm backs từ tất cả cards của user để có đủ wrong answers
       if (allBacks.length < 4 && user != null) {
         final allSnapshot = await _dbRef.child("cards").orderByChild("ownerId").equalTo(user!.uid).get();
         if (allSnapshot.exists) {
@@ -158,7 +152,6 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
         _isLoading = false;
       });
 
-      // Tạo quiz cho review card đầu tiên
       if (reviewCards.isNotEmpty) _generateQuiz(reviewCards[0]);
     } catch (e) {
       setState(() => _isLoading = false);
@@ -173,7 +166,6 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
       if (options.length >= 4) break;
       options.add(b);
     }
-    // Nếu không đủ 4, thêm placeholder
     while (options.length < 4) {
       options.add('---');
     }
@@ -194,7 +186,6 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
     }
   }
 
-  // Xử lý nút SRS cho thẻ mới (flip card)
   void _handleNewCardRating(String rating) async {
     final card = _currentCard;
     if (card == null || user == null) return;
@@ -219,7 +210,6 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
       if (_animationStatus != AnimationStatus.dismissed) _controller.reset();
     });
 
-    // Nếu chuyển sang review mode, chuẩn bị quiz
     if (_isReviewMode && _reviewIndex < _reviewCards.length) {
       _generateQuiz(_reviewCards[_reviewIndex]);
     }
@@ -227,7 +217,6 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
     if (_sessionDone) _completeSession();
   }
 
-  // Xử lý chọn đáp án quiz (review card)
   void _handleQuizAnswer(int selectedIndex) async {
     if (_quizAnswered) return;
     final card = _currentCard;
@@ -240,7 +229,6 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
       _quizCorrect = correct;
     });
 
-    // Tính XP
     const int xpCorrect = 5;
     const int xpWrong = 3;
 
@@ -259,7 +247,6 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
     }
   }
 
-  // Sau khi xem kết quả quiz, bấm tiếp theo
   void _nextReviewCard(String rating) async {
     final card = _currentCard;
     if (card == null || user == null) return;
@@ -292,7 +279,6 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
   Future<void> _completeSession() async {
     if (user != null) {
       try {
-        // Bonus 50 XP khi hoàn thành session
         await _leaderboardService.addXP(user!.uid, 50);
         setState(() => _sessionXP += 50);
         await _streakService.updateStreak(user!.uid);
@@ -359,7 +345,6 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
               style: TextStyle(fontSize: 11, color: _isReviewMode ? Colors.orange : colorPrimary),
             ),
           ]),
-          // XP delta indicator
           AnimatedOpacity(
             opacity: _xpDelta != 0 ? 1.0 : 0.0,
             duration: const Duration(milliseconds: 300),
@@ -394,7 +379,6 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
     );
   }
 
-  // ---- FLIP CARD VIEW (thẻ mới) ----
   Widget _buildFlipCardView() {
     final card = _currentCard!;
     bool isBack = _animationStatus == AnimationStatus.completed || _animationStatus == AnimationStatus.forward;
@@ -494,7 +478,6 @@ class _FlashcardSessionScreenState extends State<FlashcardSessionScreen>
     );
   }
 
-  // ---- QUIZ VIEW (ôn tập) ----
   Widget _buildQuizView() {
     final card = _currentCard!;
 

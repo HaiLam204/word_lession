@@ -25,7 +25,7 @@ class _CommunityScreenState extends State<CommunityScreen> with SingleTickerProv
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 2, vsync: this);
     _tabController.addListener(() {
       setState(() {
         _selectedTab = _tabController.index;
@@ -54,7 +54,6 @@ class _CommunityScreenState extends State<CommunityScreen> with SingleTickerProv
                 children: [
                   _buildExploreTab(),
                   _buildLeaderboardTab(),
-                  _buildForumTab(),
                 ],
               ),
             ),
@@ -139,7 +138,6 @@ class _CommunityScreenState extends State<CommunityScreen> with SingleTickerProv
         tabs: const [
           Tab(text: 'Khám phá'),
           Tab(text: 'Bảng xếp hạng'),
-          Tab(text: 'Diễn đàn'),
         ],
       ),
     );
@@ -954,23 +952,6 @@ class _CommunityScreenState extends State<CommunityScreen> with SingleTickerProv
   }
 
   Widget _buildForumTab() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.forum, size: 80, color: Colors.grey.shade300),
-          const SizedBox(height: 16),
-          Text(
-            'Diễn đàn',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey.shade600),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Tính năng đang phát triển',
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
-          ),
-        ],
-      ),
-    );
+    return const SizedBox.shrink();
   }
 }

@@ -17,7 +17,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
 
   String _searchQuery = "";
-  String _filterStatus = "All"; // All, Review, Mastered
+  String _filterStatus = "All"; 
 
   final Color primaryColor = const Color(0xFF286D8A);
   final Color accentGold = const Color(0xFFD4AF37);
@@ -57,7 +57,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          const SizedBox(width: 40), // Spacer for alignment
+          const SizedBox(width: 40), 
           const Text(
             'Thư viện',
             style: TextStyle(
