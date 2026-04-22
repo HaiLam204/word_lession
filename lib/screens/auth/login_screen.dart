@@ -17,7 +17,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _isLoading = false;
   bool _isGoogleLoading = false;
   bool _isPasswordVisible = false;
-
   void _handleLogin() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) return;
 
@@ -49,6 +48,59 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => _isGoogleLoading = false);
     }
+  }
+
+  void _handleForgotPassword() async {
+    final emailCtrl = TextEditingController(text: _emailController.text.trim());
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Quên mật khẩu'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('Nhập email của bạn, chúng tôi sẽ gửi link đặt lại mật khẩu.', style: TextStyle(color: Colors.grey, fontSize: 13)),
+          const SizedBox(height: 16),
+          TextField(
+            controller: emailCtrl,
+            keyboardType: TextInputType.emailAddress,
+            decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.mail_outline, color: Color(0xFF658680)),
+              hintText: 'your@email.com',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF27CEAF), width: 2)),
+            ),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF27CEAF), foregroundColor: Colors.white),
+            onPressed: () async {
+              String email = emailCtrl.text.trim();
+              if (email.isEmpty) return;
+              Navigator.pop(ctx);
+              try {
+                await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('Đã gửi link đặt lại mật khẩu đến $email'),
+                    backgroundColor: Colors.green,
+                  ));
+                }
+              } on FirebaseAuthException catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(e.message ?? 'Có lỗi xảy ra'),
+                    backgroundColor: Colors.red,
+                  ));
+                }
+              }
+            },
+            child: const Text('Gửi'),
+          ),
+        ],
+      ),
+    );
+    emailCtrl.dispose();
   }
 
   @override
@@ -89,11 +141,14 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 20),
-              const Row(
+              Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text("Password", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF121716))),
-                  Text("Forgot Password?", style: TextStyle(color: Color(0xFF27CEAF), fontWeight: FontWeight.bold, fontSize: 12)),
+                  const Text("Password", style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: Color(0xFF121716))),
+                  GestureDetector(
+                    onTap: _handleForgotPassword,
+                    child: const Text("Quên mật khẩu?", style: TextStyle(color: Color(0xFF27CEAF), fontWeight: FontWeight.bold, fontSize: 12)),
+                  ),
                 ],
               ),
               const SizedBox(height: 8),

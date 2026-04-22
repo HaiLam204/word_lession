@@ -7,6 +7,9 @@ import '../../models/app_models.dart';
 import '../statistics/statistics_screen.dart';
 import '../test/test_notification_screen.dart';
 import '../test/test_xp_screen.dart';
+import '../admin/admin_dashboard_screen.dart';
+import '../admin/admin_users_screen.dart';
+import '../admin/admin_community_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -471,24 +474,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                     _buildSettingsCard([
                       _buildSimpleItem(
+                        icon: Icons.dashboard,
+                        title: 'Dashboard & Thống kê',
+                        onTap: () => Navigator.push(context,
+                            MaterialPageRoute(builder: (context) => const AdminDashboardScreen())),
+                      ),
+                      _buildSimpleItem(
+                        icon: Icons.people,
+                        title: 'Quản lý người dùng',
+                        onTap: () => Navigator.push(context,
+                            MaterialPageRoute(builder: (context) => const AdminUsersScreen())),
+                      ),
+                      _buildSimpleItem(
+                        icon: Icons.public,
+                        title: 'Quản lý cộng đồng',
+                        onTap: () => Navigator.push(context,
+                            MaterialPageRoute(builder: (context) => const AdminCommunityScreen())),
+                      ),
+                      _buildSimpleItem(
                         icon: Icons.bug_report,
                         title: 'Test Thông báo',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const TestNotificationScreen()),
-                          );
-                        },
+                        onTap: () => Navigator.push(context,
+                            MaterialPageRoute(builder: (context) => const TestNotificationScreen())),
                       ),
                       _buildSimpleItem(
                         icon: Icons.emoji_events,
                         title: 'Test XP & Leaderboard',
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (context) => const TestXPScreen()),
-                          );
-                        },
+                        onTap: () => Navigator.push(context,
+                            MaterialPageRoute(builder: (context) => const TestXPScreen())),
                       ),
                     ]),
                     const SizedBox(height: 24),
