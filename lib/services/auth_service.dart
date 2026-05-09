@@ -51,54 +51,17 @@ class AuthService {
           'streak': 0,
           'lastStudyDate': 0,
           'xp': 0,
-          'totalDecks': 1,
+          'totalDecks': 0,
           'isAdmin': false,
         });
 
         // Welcome notification
         await _dbRef.child('notifications/${user.uid}').push().set({
           'title': 'Chào mừng bạn!',
-          'message': 'Chúc mừng bạn đã tham gia ứng dụng học từ vựng. Hãy bắt đầu học ngay!',
+          'message': 'Chúc mừng bạn đã tham gia ứng dụng học từ vựng. Hãy tạo bộ thẻ đầu tiên và bắt đầu học ngay!',
           'type': 'system',
           'timestamp': now,
           'isRead': false,
-        });
-
-        // Create sample deck
-        DatabaseReference newDeckRef = _dbRef.child('decks').push();
-        String deckId = newDeckRef.key!;
-        await newDeckRef.set({
-          'id': deckId,
-          'ownerId': user.uid,
-          'name': 'Tiếng Anh Giao Tiếp (Mẫu)',
-          'description': 'Bộ từ vựng mẫu để bạn làm quen với ứng dụng.',
-          'cardCount': 2,
-          'isPublic': false,
-          'createdAt': now,
-        });
-
-        await _dbRef.child('cards').push().set({
-          'deckId': deckId,
-          'ownerId': user.uid,
-          'front': "How's it going?",
-          'back': 'Dạo này thế nào? (Cách chào hỏi thân mật)',
-          'example': "Hey Mark, long time no see. How's it going?",
-          'dueDate': now,
-          'interval': 0,
-          'easeFactor': 2.5,
-          'status': 'new',
-        });
-
-        await _dbRef.child('cards').push().set({
-          'deckId': deckId,
-          'ownerId': user.uid,
-          'front': 'I appreciate it',
-          'back': 'Tôi rất trân trọng điều đó (Cảm ơn lịch sự)',
-          'example': 'Thanks for your help, I really appreciate it.',
-          'dueDate': now,
-          'interval': 0,
-          'easeFactor': 2.5,
-          'status': 'new',
         });
       }
     } catch (e) {
@@ -125,61 +88,21 @@ class AuthService {
       "streak": 0,
       "lastStudyDate": 0,
       "xp": 0,
-      "totalDecks": 1,
+      "totalDecks": 0,
       "isAdmin": false,
     });
 
-    // Create welcome notifications
+    // Thông báo chào mừng
     await _dbRef.child("notifications/$uid").push().set({
       "title": "Chào mừng bạn!",
-      "message": "Chúc mừng bạn đã tham gia ứng dụng học từ vựng. Hãy bắt đầu học ngay!",
+      "message": "Chúc mừng bạn đã tham gia ứng dụng học từ vựng. Hãy tạo bộ thẻ đầu tiên và bắt đầu học ngay!",
       "type": "system",
       "timestamp": now,
       "isRead": false,
     });
 
-    await _dbRef.child("notifications/$uid").push().set({
-      "title": "Đến giờ ôn tập rồi!",
-      "message": "Bạn có 2 thẻ mới trong bộ từ vựng mẫu. Hãy bắt đầu học nhé!",
-      "type": "study",
-      "timestamp": now - 3600000, // 1 hour ago
-      "isRead": false,
-    });
-
-    DatabaseReference newDeckRef = _dbRef.child("decks").push();
-    String deckId = newDeckRef.key!;
-
-    await newDeckRef.set({
-      "id": deckId,
-      "ownerId": uid,
-      "name": "Tiếng Anh Giao Tiếp (Mẫu)",
-      "description": "Bộ từ vựng mẫu để bạn làm quen với ứng dụng.",
-      "cardCount": 2,
-      "isPublic": false,
-      "createdAt": now
-    });
-
-    await _dbRef.child("cards").push().set({
-      "deckId": deckId,
-      "front": "How's it going?",
-      "back": "Dạo này thế nào? (Cách chào hỏi thân mật)",
-      "example": "Hey Mark, long time no see. How's it going?",
-      "dueDate": now,
-      "interval": 0,
-      "easeFactor": 2.5,
-      "status": "new"
-    });
-
-    await _dbRef.child("cards").push().set({
-      "deckId": deckId,
-      "front": "I appreciate it",
-      "back": "Tôi rất trân trọng điều đó (Cảm ơn lịch sự)",
-      "example": "Thanks for your help, I really appreciate it.",
-      "dueDate": now,
-      "interval": 0,
-      "easeFactor": 2.5,
-      "status": "new"
-    });
+    // Đăng xuất ngay để user phải đăng nhập lại
+    await _auth.signOut();
   }
 
   Future<void> signOut() async {
